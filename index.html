@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>بين الشفتات | تنظيم العمل وتسليم المهام</title>
+  <meta name="description" content="نموذج أولي لتنظيم الحجوزات والنواقص والتبليغات وتسليم المهام بين الشفت الصباحي والمسائي">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Header & Context Controls -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand-section">
+        <div class="logo-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 3h5v5"></path>
+            <path d="M8 21H3v-5"></path>
+            <path d="M21 3l-7.5 7.5"></path>
+            <path d="M3 21l7.5-7.5"></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">بين الشفتات</h1>
+          <p class="brand-subtitle">تسليم المهام والنواقص بين الصباحي والمسائي</p>
+        </div>
+      </div>
+
+      <!-- Quick Switcher Bar (User & Shift) -->
+      <div class="user-shift-bar" aria-label="إعدادات الموظف والشفت الحالي">
+        <!-- Current Shift Toggle -->
+        <div class="control-group">
+          <span class="control-label">الشفت الحالي:</span>
+          <div class="segmented-control" id="shiftSelector" role="radiogroup" aria-label="اختر الشفت الحالي">
+            <button type="button" class="segment-btn active" data-shift="صباحي" id="shiftMorningBtn" role="radio" aria-checked="true">
+              <span class="icon">☀️</span>
+              <span>صباحي</span>
+            </button>
+            <button type="button" class="segment-btn" data-shift="مسائي" id="shiftEveningBtn" role="radio" aria-checked="false">
+              <span class="icon">🌙</span>
+              <span>مسائي</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Current User Selector -->
+        <div class="control-group">
+          <label for="userSelect" class="control-label">أنت الآن تعمل باسم:</label>
+          <div class="select-wrapper">
+            <select id="userSelect" class="custom-select" aria-label="اختيار الموظف الحالي">
+              <!-- Dynamically populated from script -->
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Prototype Notice Banner -->
+  <div class="notice-bar">
+    <div class="notice-content">
+      <span class="notice-badge">نسخة تجريبية للتجربة</span>
+      <p class="notice-text">
+        البيانات محفوظة على هذا المتصفح فقط (LocalStorage) ولا تتزامن بين الأجهزة حالياً. مصممة لتجربة دورة العمل وسهولة التسليم.
+      </p>
+      <button type="button" class="notice-reset-btn" id="resetDataBtn" title="استعادة بيانات التجربة الافتراضية">
+        إعادة تعيين للبيانات الافتراضية
+      </button>
+    </div>
+  </div>
+
+  <main class="main-container">
+    <!-- Summary Stats Bar -->
+    <section class="stats-grid" aria-label="ملخص الطلبات">
+      <div class="stat-card stat-all" id="statAllCard" tabindex="0" role="button" aria-label="عرض كل الطلبات">
+        <div class="stat-icon">📋</div>
+        <div class="stat-info">
+          <span class="stat-num" id="statTotalCount">0</span>
+          <span class="stat-label">إجمالي الطلبات</span>
+        </div>
+      </div>
+      <div class="stat-card stat-new" id="statNewCard" tabindex="0" role="button" aria-label="عرض الطلبات الجديدة">
+        <div class="stat-icon">🆕</div>
+        <div class="stat-info">
+          <span class="stat-num" id="statNewCount">0</span>
+          <span class="stat-label">طلبات جديدة</span>
+        </div>
+      </div>
+      <div class="stat-card stat-progress" id="statProgressCard" tabindex="0" role="button" aria-label="عرض قيد المتابعة">
+        <div class="stat-icon">⏳</div>
+        <div class="stat-info">
+          <span class="stat-num" id="statProgressCount">0</span>
+          <span class="stat-label">قيد المتابعة والتجهيز</span>
+        </div>
+      </div>
+      <div class="stat-card stat-done" id="statDoneCard" tabindex="0" role="button" aria-label="عرض الطلبات المكتملة">
+        <div class="stat-icon">✅</div>
+        <div class="stat-info">
+          <span class="stat-num" id="statDoneCount">0</span>
+          <span class="stat-label">مكتملة ومُسلّمة</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Shift Handover Special Banner (باقي من الشفت السابق) -->
+    <section class="handover-banner" id="handoverSection" aria-label="تسليم الشفت">
+      <div class="handover-content">
+        <div class="handover-header">
+          <div class="handover-tag">
+            <span class="pulse-indicator"></span>
+            <span>باقي من الشفت السابق (<span id="prevShiftName">المسائي</span>)</span>
+          </div>
+          <p class="handover-desc" id="handoverDescText">
+            توجد طلبات معلّقة من الشفت السابق تحتاج متابعتكم. المستعجل والأقرب موعداً يظهر أولاً.
+          </p>
+        </div>
+        <div class="handover-action">
+          <button type="button" class="btn btn-handover" id="handoverToggleBtn">
+            <span class="btn-icon">⚡</span>
+            <span id="handoverBtnText">عرض مهام الشفت السابق (<span id="prevShiftCount">0</span>)</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Navigation & Filters Bar -->
+    <div class="toolbar-section">
+      <!-- Tabs (الكل، الحجوزات، النواقص، التبليغات) -->
+      <nav class="category-tabs" aria-label="أقسام الطلبات">
+        <button type="button" class="tab-btn active" data-category="all" id="tabAll">
+          <span class="tab-title">الكل</span>
+          <span class="tab-badge" id="badgeAll">0</span>
+        </button>
+        <button type="button" class="tab-btn" data-category="reservation" id="tabReservation">
+          <span class="tab-icon">📦</span>
+          <span class="tab-title">الحجوزات</span>
+          <span class="tab-badge" id="badgeReservation">0</span>
+        </button>
+        <button type="button" class="tab-btn" data-category="shortage" id="tabShortage">
+          <span class="tab-icon">🛒</span>
+          <span class="tab-title">النواقص</span>
+          <span class="tab-badge" id="badgeShortage">0</span>
+        </button>
+        <button type="button" class="tab-btn" data-category="announcement" id="tabAnnouncement">
+          <span class="tab-icon">📢</span>
+          <span class="tab-title">التبليغات</span>
+          <span class="tab-badge" id="badgeAnnouncement">0</span>
+        </button>
+      </nav>
+
+      <!-- Primary Action: Add Request -->
+      <div class="primary-action-wrap">
+        <button type="button" class="btn btn-primary btn-add-request" id="openAddModalBtn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>إضافة طلب جديد</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Filter & Search Controls Strip -->
+    <div class="filter-strip">
+      <div class="search-box">
+        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" id="searchInput" placeholder="بحث في العناوين، التفاصيل، الزبائن..." aria-label="بحث في الطلبات">
+        <button type="button" id="clearSearchBtn" class="clear-search-btn" title="مسح البحث" style="display: none;">✕</button>
+      </div>
+
+      <div class="filter-controls">
+        <!-- Status Filter -->
+        <div class="filter-item">
+          <label for="statusFilter" class="filter-label">الحالة:</label>
+          <select id="statusFilter" class="custom-select filter-select">
+            <option value="all">جميع الحالات</option>
+            <option value="new">جديد فقط</option>
+            <option value="in_progress">قيد المتابعة والتجهيز</option>
+            <option value="ready">جاهز للاستلام</option>
+            <option value="completed">مكتمل ومُسلّم</option>
+          </select>
+        </div>
+
+        <!-- Priority Filter -->
+        <div class="filter-item">
+          <label for="priorityFilter" class="filter-label">الأولوية:</label>
+          <select id="priorityFilter" class="custom-select filter-select">
+            <option value="all">الكل</option>
+            <option value="urgent">المستعجل فقط ⚡</option>
+            <option value="normal">العادي فقط</option>
+          </select>
+        </div>
+
+        <!-- "طلباتي" Toggle -->
+        <button type="button" class="toggle-pill" id="myTasksToggle" aria-pressed="false">
+          <span class="toggle-icon">👤</span>
+          <span>طلباتي فقط</span>
+          <span class="toggle-badge" id="myTasksCount">0</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Active Filters Indicator / Bar -->
+    <div class="active-filters-bar" id="activeFiltersBar" style="display: none;">
+      <span class="filters-note">تطبيق تصفية:</span>
+      <span class="filter-chip" id="activeFilterTag"></span>
+      <button type="button" class="btn-clear-filters" id="clearAllFiltersBtn">إلغاء التصفية وعرض الكل</button>
+    </div>
+
+    <!-- Items List / Cards Grid -->
+    <section class="items-section" aria-label="قائمة الطلبات والتبليغات">
+      <div id="itemsContainer" class="items-container">
+        <!-- Dynamic Cards Injected Here -->
+      </div>
+
+      <!-- Empty State -->
+      <div id="emptyState" class="empty-state" style="display: none;">
+        <div class="empty-icon" id="emptyIcon">📭</div>
+        <h3 class="empty-title" id="emptyTitle">لا توجد طلبات هنا</h3>
+        <p class="empty-desc" id="emptyDesc">لم يُضف أي طلب يطابق هذا القسم أو التصفية الحالية.</p>
+        <button type="button" class="btn btn-outline" id="emptyActionBtn">إضافة طلب الآن</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Add / Edit Modal -->
+  <div class="modal-backdrop" id="requestModal" role="dialog" aria-modal="true" aria-labelledby="modalHeading" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="modal-icon" id="modalHeaderIcon">📝</span>
+          <h2 class="modal-title" id="modalHeading">إضافة طلب جديد</h2>
+        </div>
+        <button type="button" class="modal-close-btn" id="closeModalBtn" aria-label="إغلاق النافذة">✕</button>
+      </div>
+
+      <form id="requestForm" class="modal-body" novalidate>
+        <input type="hidden" id="editRequestId" value="">
+
+        <!-- Category selector buttons -->
+        <div class="form-group">
+          <label class="form-label required">القسم / نوع الطلب:</label>
+          <div class="type-picker" role="radiogroup">
+            <label class="type-option">
+              <input type="radio" name="itemCategory" value="reservation" checked>
+              <div class="type-card">
+                <span class="type-emoji">📦</span>
+                <span class="type-name">حجز بضاعة / كتاب</span>
+                <span class="type-hint">لزبون ينتظر الاستلام</span>
+              </div>
+            </label>
+            <label class="type-option">
+              <input type="radio" name="itemCategory" value="shortage">
+              <div class="type-card">
+                <span class="type-emoji">🛒</span>
+                <span class="type-name">نقص مستلزمات</span>
+                <span class="type-hint">بضاعة أو أدوات تلزم المحل</span>
+              </div>
+            </label>
+            <label class="type-option">
+              <input type="radio" name="itemCategory" value="announcement">
+              <div class="type-card">
+                <span class="type-emoji">📢</span>
+                <span class="type-name">تبليغ عام للشفتين</span>
+                <span class="type-hint">تنبيه أو إعلان للموظفين</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Title -->
+        <div class="form-group">
+          <label for="reqTitle" class="form-label required">عنوان المطلوب:</label>
+          <input type="text" id="reqTitle" class="form-input" placeholder="مثال: حجز كتاب تاريخ، أو توفير ورق A4، أو تبليغ بالدوام..." required>
+          <span class="field-error" id="titleError">يرجى كتابة عنوان المطلوب</span>
+        </div>
+
+        <!-- Conditional fields for Shortage: Quantity -->
+        <div class="form-group" id="shortageFields" style="display: none;">
+          <label for="reqQuantity" class="form-label">الكمية المطلوبة:</label>
+          <input type="text" id="reqQuantity" class="form-input" placeholder="مثال: 5 رزم، 3 علب، 1 كرتون">
+        </div>
+
+        <!-- Conditional fields for Reservation: Customer name & phone -->
+        <div class="form-row" id="reservationFields">
+          <div class="form-group col-6">
+            <label for="reqCustomerName" class="form-label">اسم الزبون (اختياري):</label>
+            <input type="text" id="reqCustomerName" class="form-input" placeholder="مثال: أبو فهد">
+          </div>
+          <div class="form-group col-6">
+            <label for="reqCustomerPhone" class="form-label">رقم التواصل (اختياري):</label>
+            <input type="tel" id="reqCustomerPhone" class="form-input" placeholder="مثال: 0551234567" dir="ltr" style="text-align: right;">
+          </div>
+        </div>
+
+        <!-- Details / Notes -->
+        <div class="form-group">
+          <label for="reqDetails" class="form-label">تفاصيل إضافية (اختياري):</label>
+          <textarea id="reqDetails" class="form-textarea" rows="3" placeholder="أي تفاصيل تساعد الزملاء على إتمام الطلب بالشكل الصحيح..."></textarea>
+        </div>
+
+        <!-- Priority and Due Date in one row -->
+        <div class="form-row">
+          <div class="form-group col-6">
+            <label class="form-label required">الأولوية:</label>
+            <div class="priority-selector">
+              <label class="priority-opt">
+                <input type="radio" name="reqPriority" value="normal" checked>
+                <span class="priority-btn priority-normal">عادي</span>
+              </label>
+              <label class="priority-opt">
+                <input type="radio" name="reqPriority" value="urgent">
+                <span class="priority-btn priority-urgent">⚡ مستعجل</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group col-6">
+            <label for="reqDueDate" class="form-label">موعد مطلوب (اختياري):</label>
+            <input type="text" id="reqDueDate" class="form-input" placeholder="مثال: اليوم قبل 4 عصراً، أو غداً صباحاً">
+          </div>
+        </div>
+
+        <!-- Auto-recorded info badge -->
+        <div class="form-auto-info">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          <span>
+            يُسجل الطلب تلقائياً باسم: <strong id="modalAuthorPreview">أحمد</strong> | الشفت: <strong id="modalShiftPreview">صباحي</strong> | التاريخ: <strong>الآن</strong>
+          </span>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" id="cancelModalBtn">إلغاء</button>
+          <button type="submit" class="btn btn-primary" id="saveRequestBtn">
+            <span id="saveBtnText">حفظ ونشر الطلب</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div class="modal-backdrop" id="deleteConfirmModal" role="dialog" aria-modal="true" style="display: none;">
+    <div class="modal-card modal-confirm">
+      <div class="confirm-icon">⚠️</div>
+      <h3 class="confirm-title">تأكيد الحذف</h3>
+      <p class="confirm-message" id="deleteConfirmMessage">هل أنت متأكد من رغبتك في حذف هذا الطلب نهائياً؟</p>
+      <div class="confirm-actions">
+        <button type="button" class="btn btn-outline" id="cancelDeleteBtn">تراجع</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">نعم، احذف الطلب</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+  <footer class="app-footer">
+    <div class="footer-container">
+      <p class="footer-text">
+        تطبيق <strong>«بين الشفتات»</strong> • نموذج أولي لربط الشفت الصباحي والمسائي.
+      </p>
+      <div class="footer-links">
+        <span class="footer-hint">💡 جرّب تبديل الشفت أو الموظف من الأعلى لمشاهدة آلية التسليم والاستلام.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
