@@ -1,3 +1,8 @@
+# Secrets & Local Environment
+.env
+.env.local
+.env.*.local
+
 # Operating System Files
 Thumbs.db
 Desktop.ini
