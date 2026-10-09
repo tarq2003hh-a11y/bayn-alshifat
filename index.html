@@ -547,36 +547,6 @@
     </div>
   </div>
 
-  <!-- 6. Supabase Setup Modal (إعداد الاتصال بـ Supabase إن لم تكن المفاتيح محقونة) -->
-  <div class="modal-backdrop" id="setupModal" role="dialog" aria-modal="true" style="display: none;">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h2 class="modal-title">⚡ ربط مشروع Supabase</h2>
-        <button type="button" class="modal-close-btn" id="closeSetupModalBtn">✕</button>
-      </div>
-      <form id="setupForm" class="modal-body">
-        <p class="auth-hint">
-          أدخل بيانات مشروع Supabase الخاص بك للاتصال بقاعدة البيانات المشتركة وتسجيل الدخول:
-        </p>
-        <div class="form-group">
-          <label for="setupSupabaseUrl" class="form-label required">Project URL:</label>
-          <input type="url" id="setupSupabaseUrl" class="form-input" dir="ltr" required placeholder="https://your-project.supabase.co">
-        </div>
-        <div class="form-group">
-          <label for="setupSupabaseAnonKey" class="form-label required">Anon Public Key:</label>
-          <textarea id="setupSupabaseAnonKey" class="form-textarea" rows="3" dir="ltr" required placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."></textarea>
-        </div>
-        <div class="store-creation-notice">
-          🔒 تُحفظ هذه البيانات محلياً في متصفحك. لا تستخدم مفتاح service_role أبداً؛ استخدم مفتاح anon فقط مع تفعيل سياسات الـ RLS.
-        </div>
-        <div class="auth-error-msg" id="setupErrorMsg"></div>
-        <div class="modal-footer">
-          <button type="submit" class="btn btn-primary" id="saveSetupBtn">حفظ والاتصال</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
   <!-- 7. Add / Edit Request Modal (حجز / نقص / تبليغ) -->
   <div class="modal-backdrop" id="requestModal" role="dialog" aria-modal="true" aria-labelledby="modalHeading" style="display: none;">
     <div class="modal-card">
@@ -718,9 +688,6 @@
       <p class="footer-text">
         تطبيق <strong>«بين الشفتات»</strong> • نظام مشترك متعدد المحلات لتسليم المهام بين الشفتين.
       </p>
-      <div class="footer-links">
-        <button type="button" class="footer-link-btn" id="reopenSetupBtn">إعدادات Supabase ⚙️</button>
-      </div>
     </div>
   </footer>
 

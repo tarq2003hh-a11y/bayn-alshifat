@@ -50,12 +50,7 @@ function getSupabase() {
 
 function ensureSupabaseConfigured() {
   if (!window.supabaseConfig || !window.supabaseConfig.isConfigured()) {
-    showNotice(
-      'لم يتم ربط مشروع Supabase بعد. اضغط هنا لإدخال Project URL و Anon Public Key.',
-      'تنبيه',
-      true,
-      () => openSetupModal()
-    );
+    console.warn('Supabase is not configured yet.');
     return false;
   }
   return true;
@@ -1639,20 +1634,6 @@ function hideTeamModal() {
   document.getElementById('teamModal').style.display = 'none';
 }
 
-// 11.4 Setup Supabase Modal
-function openSetupModal() {
-  const modal = document.getElementById('setupModal');
-  const cfg = window.supabaseConfig?.config || {};
-  document.getElementById('setupSupabaseUrl').value = cfg.url || '';
-  document.getElementById('setupSupabaseAnonKey').value = cfg.anonKey || '';
-  document.getElementById('setupErrorMsg').style.display = 'none';
-  modal.style.display = 'flex';
-}
-
-function hideSetupModal() {
-  document.getElementById('setupModal').style.display = 'none';
-}
-
 // 11.5 Request Modal (Add / Edit)
 function openAddModal() {
   if (!state.user) {
@@ -1904,26 +1885,6 @@ function setupEventListeners() {
     e.preventDefault();
     const password = document.getElementById('newPassword').value;
     await handleResetPassword(password);
-  });
-
-  // إعدادات Supabase
-  document.getElementById('reopenSetupBtn')?.addEventListener('click', openSetupModal);
-  document.getElementById('closeSetupModalBtn')?.addEventListener('click', hideSetupModal);
-  document.getElementById('setupForm')?.addEventListener('submit', e => {
-    e.preventDefault();
-    const url = document.getElementById('setupSupabaseUrl').value;
-    const key = document.getElementById('setupSupabaseAnonKey').value;
-    const errEl = document.getElementById('setupErrorMsg');
-    try {
-      window.supabaseConfig.saveConfig(url, key);
-      showToast('تم حفظ إعدادات Supabase والاتصال بنجاح', 'success');
-      hideSetupModal();
-      document.getElementById('noticeBar').style.display = 'none';
-      initAuth();
-    } catch (err) {
-      errEl.textContent = err.message;
-      errEl.style.display = 'block';
-    }
   });
 
   // إضافة وتعديل الطلبات
