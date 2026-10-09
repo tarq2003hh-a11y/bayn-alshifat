@@ -1,22 +1,30 @@
 /**
  * بين الشفتات - إعدادات وتهيئة عميل Supabase
  * Bayn Al-Shifat - Supabase Client Configuration
- * ==============================================================================
- * يمكنك وضع رابط ومفتاح مشروعك هنا مباشرة لكي يفتح الموقع لجميع الموظفين
- * من أي هاتف أو كمبيوتر تلقائياً دون الحاجة لأي شاشات إعداد في الواجهة.
- *
- * ملاحظة أمان:
- * مفتاح anon key العام في Supabase آمن للاستخدام في واجهة المتصفح،
- * لأن الحماية الحقيقية تتم داخل قاعدة البيانات عبر سياسات الـ Row Level Security (RLS)
- * بحيث لا يستطيع أي شخص الوصول لبيانات أي محل إلا إذا كان عضواً مسجلاً فيه.
- * ==============================================================================
  */
+
+// الرابط الأساسي الصافي لمشروع Supabase (بدون أي مسارات مثل /rest/v1 أو /auth/v1)
+// ومفتاح anon العام المحمي بسياسات RLS
 const DEFAULT_CONFIG = {
-  url: window.ENV_SUPABASE_URL || '',
-  anonKey: window.ENV_SUPABASE_ANON_KEY || ''
+  url: 'https://dbpxpblwzpabfwqayxhb.supabase.co',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRicHhwYmx3enBhYmZ3cWF5eGhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1NDAxNjMsImV4cCI6MjEwNzExNjE2M30.1WBuxu2qWHvb23JeZ0T6hQ8du44L33XWk88UOzWqlq4'
 };
 
-const CONFIG_STORAGE_KEY = 'bayn_supabase_config_v1';
+const CONFIG_STORAGE_KEY = 'bayn_supabase_config_v2'; // استخدام مفتاح v2 لتجاوز أي قيم قديمة خاطئة في المتصفح
+
+// دالة لتنظيف وتجريد الرابط من أي مسارات إضافية تسبب خطأ PGRST125 (Invalid path specified in request URL)
+function cleanSupabaseUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== 'string') return '';
+  const trimmed = rawUrl.trim();
+  try {
+    const parsed = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
+    // استخراج الأصل فقط (Origin) مثل: https://xxxx.supabase.co
+    return parsed.origin;
+  } catch (e) {
+    // إزالة أي مسارات يدوية في حال تعذر التحليل
+    return trimmed.split('/rest/')[0].split('/auth/')[0].replace(/\/+$/, '');
+  }
+}
 
 class SupabaseConfigManager {
   constructor() {
@@ -26,45 +34,65 @@ class SupabaseConfigManager {
   }
 
   loadConfig() {
+    // تنظيف المفتاح القديم إذا كان مخزناً بقيم غير صحيحة
+    try {
+      localStorage.removeItem('bayn_supabase_config_v1');
+    } catch (e) {}
+
+    // التحقق من وجود إعدادات محلية v2
     try {
       const stored = localStorage.getItem(CONFIG_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed.url && parsed.anonKey) {
-          return parsed;
+        const cleanedUrl = cleanSupabaseUrl(parsed.url);
+        if (cleanedUrl && parsed.anonKey) {
+          return { url: cleanedUrl, anonKey: parsed.anonKey.trim() };
         }
       }
     } catch (e) {
       console.warn('Error reading stored Supabase config:', e);
     }
-    return { ...DEFAULT_CONFIG };
+
+    // الاعتماد على DEFAULT_CONFIG الصافي
+    return {
+      url: cleanSupabaseUrl(DEFAULT_CONFIG.url),
+      anonKey: DEFAULT_CONFIG.anonKey.trim()
+    };
   }
 
   saveConfig(url, anonKey) {
-    const cleanUrl = (url || '').trim().replace(/\/+$/, '');
+    const cleanedUrl = cleanSupabaseUrl(url);
     const cleanKey = (anonKey || '').trim();
 
-    if (!cleanUrl.startsWith('https://')) {
+    if (!cleanedUrl.startsWith('https://')) {
       throw new Error('رابط Supabase يجب أن يبدأ بـ https://');
     }
     if (!cleanKey || cleanKey.length < 20) {
       throw new Error('مفتاح anon key غير صحيح أو قصير جداً');
     }
 
-    this.config = { url: cleanUrl, anonKey: cleanKey };
-    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(this.config));
+    this.config = { url: cleanedUrl, anonKey: cleanKey };
+    try {
+      localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(this.config));
+    } catch (e) {}
     this.initClient();
     return true;
   }
 
   clearConfig() {
-    localStorage.removeItem(CONFIG_STORAGE_KEY);
-    this.config = { ...DEFAULT_CONFIG };
+    try {
+      localStorage.removeItem(CONFIG_STORAGE_KEY);
+    } catch (e) {}
+    this.config = {
+      url: cleanSupabaseUrl(DEFAULT_CONFIG.url),
+      anonKey: DEFAULT_CONFIG.anonKey.trim()
+    };
     this.client = null;
+    this.initClient();
   }
 
   isConfigured() {
-    return Boolean(this.config.url && this.config.anonKey);
+    return Boolean(this.config.url && this.config.anonKey && this.config.url.startsWith('https://'));
   }
 
   initClient() {
@@ -75,7 +103,8 @@ class SupabaseConfigManager {
 
     if (window.supabase && typeof window.supabase.createClient === 'function') {
       try {
-        this.client = window.supabase.createClient(this.config.url, this.config.anonKey, {
+        const pureUrl = cleanSupabaseUrl(this.config.url);
+        this.client = window.supabase.createClient(pureUrl, this.config.anonKey, {
           auth: {
             persistSession: true,
             autoRefreshToken: true,
