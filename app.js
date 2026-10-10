@@ -135,35 +135,59 @@ function updateUserHeaderUI() {
   const guestButtons = document.getElementById('guestAuthButtons');
   const storeSelectorWrap = document.getElementById('storeSelectorWrap');
   const openTeamBtn = document.getElementById('openTeamModalBtn');
+  const drawerAdminSection = document.getElementById('drawerAdminSection');
+  const headerUserIndicator = document.getElementById('headerUserIndicator');
+  const headerStoreChip = document.getElementById('headerStoreChip');
+  const headerStoreName = document.getElementById('headerStoreName');
 
   if (state.user) {
-    loggedInfo.style.display = 'flex';
-    guestButtons.style.display = 'none';
+    if (loggedInfo) loggedInfo.style.display = 'flex';
+    if (guestButtons) guestButtons.style.display = 'none';
+    if (headerUserIndicator) headerUserIndicator.style.display = 'block';
 
-    document.getElementById('userDisplayName').textContent = state.user.full_name;
-    document.getElementById('userAvatarText').textContent = (state.user.full_name || 'م')[0].toUpperCase();
+    const displayNameEl = document.getElementById('userDisplayName');
+    const avatarEl = document.getElementById('userAvatarText');
+    if (displayNameEl) displayNameEl.textContent = state.user.full_name;
+    if (avatarEl) avatarEl.textContent = (state.user.full_name || 'م')[0].toUpperCase();
 
     // إظهار دور المستخدم في المحل النشط
     const roleBadge = document.getElementById('userRoleBadge');
     if (state.activeStore) {
       const role = state.activeStore.role;
       const roleMap = { owner: '👑 مالك', manager: '🛡️ مدير', staff: '💼 موظف' };
-      roleBadge.textContent = roleMap[role] || role;
-      roleBadge.className = `user-role-badge role-${role}`;
-      // زر إدارة الفريق يظهر للمالك والمدير فقط
-      openTeamBtn.style.display = (role === 'owner' || role === 'manager') ? 'inline-flex' : 'none';
-      storeSelectorWrap.style.display = 'inline-flex';
+      if (roleBadge) {
+        roleBadge.textContent = roleMap[role] || role;
+        roleBadge.className = `user-role-badge role-${role}`;
+      }
+      // قسم الإدارة للمالك والمدير
+      const canAdmin = (role === 'owner' || role === 'manager');
+      if (drawerAdminSection) drawerAdminSection.style.display = canAdmin ? 'block' : 'none';
+      if (openTeamBtn) openTeamBtn.style.display = canAdmin ? 'inline-flex' : 'none';
+      if (storeSelectorWrap) storeSelectorWrap.style.display = 'block';
+
+      // إظهار اسم المحل النشط في الهيدر الثابت
+      if (headerStoreChip) {
+        headerStoreChip.style.display = 'inline-flex';
+        if (headerStoreName) headerStoreName.textContent = state.activeStore.name;
+      }
     } else {
-      roleBadge.textContent = 'بدون محل';
-      roleBadge.className = 'user-role-badge';
-      openTeamBtn.style.display = 'none';
-      storeSelectorWrap.style.display = state.stores.length > 0 ? 'inline-flex' : 'none';
+      if (roleBadge) {
+        roleBadge.textContent = 'بدون محل';
+        roleBadge.className = 'user-role-badge';
+      }
+      if (drawerAdminSection) drawerAdminSection.style.display = 'none';
+      if (openTeamBtn) openTeamBtn.style.display = 'none';
+      if (storeSelectorWrap) storeSelectorWrap.style.display = state.stores.length > 0 ? 'block' : 'none';
+      if (headerStoreChip) headerStoreChip.style.display = 'none';
     }
   } else {
-    loggedInfo.style.display = 'none';
-    guestButtons.style.display = 'flex';
-    storeSelectorWrap.style.display = 'none';
-    openTeamBtn.style.display = 'none';
+    if (loggedInfo) loggedInfo.style.display = 'none';
+    if (guestButtons) guestButtons.style.display = 'flex';
+    if (headerUserIndicator) headerUserIndicator.style.display = 'none';
+    if (storeSelectorWrap) storeSelectorWrap.style.display = 'none';
+    if (drawerAdminSection) drawerAdminSection.style.display = 'none';
+    if (openTeamBtn) openTeamBtn.style.display = 'none';
+    if (headerStoreChip) headerStoreChip.style.display = 'none';
   }
 }
 
@@ -387,7 +411,9 @@ async function switchActiveStore(storeId) {
 
   updateStoreSelectDropdown();
   updateUserHeaderUI();
-  document.getElementById('headerSubtitle').textContent = `تسليم المهام والنواقص في: ${target.name}`;
+  const subtitleEl = document.getElementById('headerSubtitle');
+  if (subtitleEl) subtitleEl.textContent = `تسليم المهام والنواقص في: ${target.name}`;
+  closeDrawer();
 
   // 3. جلب بيانات المحل الجديد
   await loadStoreData(target.id);
@@ -1174,33 +1200,82 @@ function calculateCounts() {
 function renderStatsAndTabs() {
   const counts = calculateCounts();
 
-  document.getElementById('statTotalCount').textContent = counts.total;
-  document.getElementById('statNewCount').textContent = counts.newCount;
-  document.getElementById('statProgressCount').textContent = counts.progressCount;
-  document.getElementById('statDoneCount').textContent = counts.doneCount;
+  const totalEl = document.getElementById('statTotalCount');
+  const newEl = document.getElementById('statNewCount');
+  const progressEl = document.getElementById('statProgressCount');
+  const doneEl = document.getElementById('statDoneCount');
+  if (totalEl) totalEl.textContent = counts.total;
+  if (newEl) newEl.textContent = counts.newCount;
+  if (progressEl) progressEl.textContent = counts.progressCount;
+  if (doneEl) doneEl.textContent = counts.doneCount;
 
-  document.getElementById('badgeAll').textContent = counts.total;
-  document.getElementById('badgeReservation').textContent = counts.reservationCount;
-  document.getElementById('badgeShortage').textContent = counts.shortageCount;
-  document.getElementById('badgeAnnouncement').textContent = counts.announcementCount;
+  // تمييز الشريحة النشطة للإحصائيات
+  const statusToPillId = {
+    all: 'statAllCard',
+    new: 'statNewCard',
+    in_progress: 'statProgressCard',
+    completed: 'statDoneCard'
+  };
+  Object.keys(statusToPillId).forEach(st => {
+    const pill = document.getElementById(statusToPillId[st]);
+    if (pill) pill.classList.toggle('active', state.filters.status === st);
+  });
 
-  document.getElementById('myTasksCount').textContent = counts.myTasksCount;
+  const bAll = document.getElementById('badgeAll');
+  const bRes = document.getElementById('badgeReservation');
+  const bShort = document.getElementById('badgeShortage');
+  const bAnn = document.getElementById('badgeAnnouncement');
+  if (bAll) bAll.textContent = counts.total;
+  if (bRes) bRes.textContent = counts.reservationCount;
+  if (bShort) bShort.textContent = counts.shortageCount;
+  if (bAnn) bAnn.textContent = counts.announcementCount;
+
+  const myTasksEl = document.getElementById('myTasksCount');
+  if (myTasksEl) myTasksEl.textContent = counts.myTasksCount;
 
   // إحصائيات باقي من الشفت السابق
   const otherShift = getOtherShift();
-  document.getElementById('prevShiftName').textContent = otherShift;
-  document.getElementById('prevShiftCount').textContent = counts.prevShiftOpenCount;
+  const prevShiftName = document.getElementById('prevShiftName');
+  const prevShiftCount = document.getElementById('prevShiftCount');
+  if (prevShiftName) prevShiftName.textContent = otherShift;
+  if (prevShiftCount) prevShiftCount.textContent = counts.prevShiftOpenCount;
 
   const handoverSection = document.getElementById('handoverSection');
   const handoverToggleBtn = document.getElementById('handoverToggleBtn');
+  const handoverBtnText = document.getElementById('handoverBtnText');
+  const handoverExpandedPanel = document.getElementById('handoverExpandedPanel');
+
   if (state.filters.handoverOnly) {
-    handoverSection.classList.add('is-filtered');
-    handoverToggleBtn.classList.add('active');
-    document.getElementById('handoverBtnText').innerHTML = `إلغاء التصفية (${counts.prevShiftOpenCount} مهام معلقة)`;
+    if (handoverSection) handoverSection.classList.add('is-filtered');
+    if (handoverToggleBtn) handoverToggleBtn.classList.add('active');
+    if (handoverBtnText) handoverBtnText.textContent = `إلغاء التصفية (${counts.prevShiftOpenCount})`;
+    if (handoverExpandedPanel) handoverExpandedPanel.style.display = 'block';
   } else {
-    handoverSection.classList.remove('is-filtered');
-    handoverToggleBtn.classList.remove('active');
-    document.getElementById('handoverBtnText').innerHTML = `عرض مهام الشفت السابق (${counts.prevShiftOpenCount})`;
+    if (handoverSection) handoverSection.classList.remove('is-filtered');
+    if (handoverToggleBtn) handoverToggleBtn.classList.remove('active');
+    if (handoverBtnText) handoverBtnText.textContent = `عرض المهام (${counts.prevShiftOpenCount}) ▾`;
+    if (handoverExpandedPanel) handoverExpandedPanel.style.display = 'none';
+  }
+
+  // حساب عدد الفلاتر النشطة لزر "تصفية"
+  let activeFilterCount = 0;
+  if (state.filters.status !== 'all') activeFilterCount++;
+  if (state.filters.priority !== 'all') activeFilterCount++;
+  if (state.filters.myTasksOnly) activeFilterCount++;
+  const filterBadge = document.getElementById('filterCountBadge');
+  if (filterBadge) {
+    if (activeFilterCount > 0) {
+      filterBadge.textContent = activeFilterCount;
+      filterBadge.style.display = 'inline-flex';
+    } else {
+      filterBadge.style.display = 'none';
+    }
+  }
+
+  const myTasksBtn = document.getElementById('myTasksToggle');
+  if (myTasksBtn) {
+    myTasksBtn.classList.toggle('active', state.filters.myTasksOnly);
+    myTasksBtn.setAttribute('aria-pressed', state.filters.myTasksOnly ? 'true' : 'false');
   }
 }
 
@@ -1353,22 +1428,75 @@ function createItemCardElement(item) {
     ? '<span class="badge badge-urgent">⚡ مستعجل</span>'
     : '<span class="badge badge-normal">عادي</span>';
 
-  let metaChipsHtml = '';
-  if (item.quantity) {
-    metaChipsHtml += `<span class="meta-chip">🔢 الكمية: <strong>${escapeHtml(item.quantity)}</strong></span>`;
-  }
-  if (item.customer_name) {
-    metaChipsHtml += `<span class="meta-chip">👤 الزبون: <strong>${escapeHtml(item.customer_name)}</strong></span>`;
-  }
-  if (item.customer_phone) {
-    metaChipsHtml += `<span class="meta-chip">📞 <span dir="ltr">${escapeHtml(item.customer_phone)}</span></span>`;
-  }
-  if (item.due_date) {
-    metaChipsHtml += `<span class="meta-chip chip-due">⏰ المطلوب: <strong>${escapeHtml(item.due_date)}</strong></span>`;
+  // المسؤول
+  let assigneeText = '';
+  const isMe = item.assignee_id === state.user?.id;
+  if (isAnnouncement) {
+    assigneeText = `<span class="card-author-chip">📢 من: <strong>${escapeHtml(item.author_name)}</strong></span>`;
+  } else if (!item.assignee_id) {
+    assigneeText = `<span class="unassigned-text">⚠️ بدون مسؤول</span>`;
+  } else {
+    assigneeText = `<span class="assignee-name">👤 المسؤول: <strong>${escapeHtml(item.assignee_name)}</strong> ${isMe ? '(أنت)' : ''}</span>`;
   }
 
-  // صلاحيات التعديل والحذف:
-  // المالك والمدير وكاتب الطلب يستطيعون التعديل والحذف
+  // زر الإجراء الأساسي
+  let primaryActionBtnHtml = '';
+  let secondaryActionsHtml = '';
+  if (isAnnouncement) {
+    const readers = state.announcementReads.filter(r => r.announcement_id === item.id);
+    const hasRead = readers.some(r => r.user_id === state.user?.id);
+    primaryActionBtnHtml = `
+      <button type="button" class="btn btn-card-action btn-ack ${hasRead ? 'already-acked' : ''}" onclick="event.stopPropagation(); handleAcknowledge('${item.id}')">
+        ${hasRead ? '✓ اطّلعت' : '👍 اطّلعت'}
+      </button>
+    `;
+  } else {
+    if (item.status === 'new') {
+      primaryActionBtnHtml = `
+        <button type="button" class="btn btn-card-action btn-take-task" onclick="event.stopPropagation(); handleTakeTask('${item.id}')">
+          ✋ أني أتابعه
+        </button>
+      `;
+    } else if (item.status === 'in_progress') {
+      if (item.category === 'reservation') {
+        primaryActionBtnHtml = `
+          <button type="button" class="btn btn-card-action btn-step-ready" onclick="event.stopPropagation(); handleSetReady('${item.id}')">
+            📦 جاهز
+          </button>
+        `;
+      } else {
+        primaryActionBtnHtml = `
+          <button type="button" class="btn btn-card-action btn-step-done" onclick="event.stopPropagation(); handleCompleteTask('${item.id}')">
+            ✅ تم التوفير
+          </button>
+        `;
+      }
+      secondaryActionsHtml = `
+        <button type="button" class="btn btn-card-action btn-cancel-take" onclick="event.stopPropagation(); handleCancelTake('${item.id}')">
+          ↩️ إلغاء استلامي
+        </button>
+      `;
+    } else if (item.status === 'ready') {
+      primaryActionBtnHtml = `
+        <button type="button" class="btn btn-card-action btn-step-done" onclick="event.stopPropagation(); handleCompleteTask('${item.id}')">
+          🤝 تم التسليم
+        </button>
+      `;
+      secondaryActionsHtml = `
+        <button type="button" class="btn btn-card-action btn-outline btn-sm" onclick="event.stopPropagation(); handleBackToProgress('${item.id}')">
+          ↩️ عودة للتجهيز
+        </button>
+      `;
+    } else if (item.status === 'completed') {
+      primaryActionBtnHtml = `
+        <button type="button" class="btn btn-card-action btn-reopen" onclick="event.stopPropagation(); handleReopenTask('${item.id}')">
+          🔄 إعادة فتح
+        </button>
+      `;
+    }
+  }
+
+  // صلاحيات التعديل والحذف
   const canManage = state.activeStore?.role === 'owner' ||
                     state.activeStore?.role === 'manager' ||
                     item.author_id === state.user?.id;
@@ -1377,129 +1505,119 @@ function createItemCardElement(item) {
   if (canManage) {
     toolsHtml = `
       <div class="card-quick-tools">
-        <button type="button" class="btn-tool" onclick="openEditModal('${item.id}', ${isAnnouncement})" title="تعديل">✏️ تعديل</button>
-        <button type="button" class="btn-tool btn-tool-delete" onclick="openDeleteModal('${item.id}', '${escapeHtml(item.title)}', ${isAnnouncement})" title="حذف">🗑️</button>
+        <button type="button" class="btn-tool" onclick="event.stopPropagation(); openEditModal('${item.id}', ${isAnnouncement})" title="تعديل">✏️ تعديل</button>
+        <button type="button" class="btn-tool btn-tool-delete" onclick="event.stopPropagation(); openDeleteModal('${item.id}', '${escapeHtml(item.title)}', ${isAnnouncement})" title="حذف">🗑️ حذف</button>
       </div>
     `;
   }
 
-  let footerHtml = '';
+  // تفاصيل إضافية (الكمية، الزبون، الهاتف، الموعد)
+  let metaChipsHtml = '';
+  if (item.quantity) {
+    metaChipsHtml += `<span class="meta-chip">🔢 الكمية: <strong>${escapeHtml(item.quantity)}</strong></span>`;
+  }
+  if (item.customer_name) {
+    metaChipsHtml += `<span class="meta-chip">👤 الزبون: <strong>${escapeHtml(item.customer_name)}</strong></span>`;
+  }
+  if (item.customer_phone) {
+    metaChipsHtml += `<a href="tel:${escapeHtml(item.customer_phone)}" class="meta-chip meta-chip-phone" onclick="event.stopPropagation()">📞 <span dir="ltr">${escapeHtml(item.customer_phone)}</span></a>`;
+  }
+  if (item.due_date) {
+    metaChipsHtml += `<span class="meta-chip chip-due">⏰ المطلوب: <strong>${escapeHtml(item.due_date)}</strong></span>`;
+  }
+
+  // في التبليغات: قائمة من اطّلعوا
+  let announcementReadersHtml = '';
   if (isAnnouncement) {
-    // قائمة من اطّلعوا
     const readers = state.announcementReads.filter(r => r.announcement_id === item.id);
-    const hasRead = readers.some(r => r.user_id === state.user?.id);
     const readerNames = readers.map(r => r.user_name).join('، ');
-
-    footerHtml = `
-      <div class="card-footer">
-        <div class="announcement-readers">
-          <div class="announcement-readers-title">
-            <span>👁️ اطّلع عليه (${readers.length}):</span>
-          </div>
-          <div class="announcement-readers-list">
-            ${readerNames || 'لم يطّلع عليه أحد بعد'}
-          </div>
-        </div>
-        <div class="card-action-buttons">
-          <button type="button" class="btn btn-card-action btn-ack ${hasRead ? 'already-acked' : ''}" onclick="handleAcknowledge('${item.id}')">
-            ${hasRead ? '✓ اطّلعت عليه' : '👍 اطّلعت'}
-          </button>
-        </div>
-      </div>
-    `;
-  } else {
-    // الحجوزات والنواقص
-    let assigneeText = '';
-    const isMe = item.assignee_id === state.user?.id;
-
-    if (!item.assignee_id) {
-      assigneeText = `<span class="unassigned-text">⚠️ بدون مسؤول حالياً</span>`;
-    } else {
-      assigneeText = `<span class="assignee-name">👤 المسؤول: <strong>${escapeHtml(item.assignee_name)}</strong> ${isMe ? '(أنت)' : ''}</span>`;
-    }
-
-    let actionButtonsHtml = '';
-    if (item.status === 'new') {
-      actionButtonsHtml = `
-        <button type="button" class="btn btn-card-action btn-take-task" onclick="handleTakeTask('${item.id}')">
-          ✋ أني أتابعه
-        </button>
-      `;
-    } else if (item.status === 'in_progress') {
-      if (item.category === 'reservation') {
-        actionButtonsHtml = `
-          <button type="button" class="btn btn-card-action btn-step-ready" onclick="handleSetReady('${item.id}')">
-            📦 جاهز للاستلام
-          </button>
-          <button type="button" class="btn btn-card-action btn-cancel-take" onclick="handleCancelTake('${item.id}')">
-            ↩️ إلغاء استلامي
-          </button>
-        `;
-      } else {
-        actionButtonsHtml = `
-          <button type="button" class="btn btn-card-action btn-step-done" onclick="handleCompleteTask('${item.id}')">
-            ✅ تم التوفير
-          </button>
-          <button type="button" class="btn btn-card-action btn-cancel-take" onclick="handleCancelTake('${item.id}')">
-            ↩️ إلغاء استلامي
-          </button>
-        `;
-      }
-    } else if (item.status === 'ready') {
-      actionButtonsHtml = `
-        <button type="button" class="btn btn-card-action btn-step-done" onclick="handleCompleteTask('${item.id}')">
-          🤝 تم التسليم للزبون
-        </button>
-        <button type="button" class="btn btn-card-action btn-outline" onclick="handleBackToProgress('${item.id}')">
-          ↩️ عودة للتجهيز
-        </button>
-      `;
-    } else if (item.status === 'completed') {
-      actionButtonsHtml = `
-        <button type="button" class="btn btn-card-action btn-reopen" onclick="handleReopenTask('${item.id}')">
-          🔄 إعادة فتح الطلب
-        </button>
-      `;
-    }
-
-    footerHtml = `
-      <div class="card-footer">
-        <div class="assignee-info-bar">
-          ${assigneeText}
-        </div>
-        <div class="card-action-buttons">
-          ${actionButtonsHtml}
-        </div>
+    announcementReadersHtml = `
+      <div class="announcement-readers-box">
+        <span class="readers-label">👁️ اطّلع عليه (${readers.length}):</span>
+        <span class="readers-names">${escapeHtml(readerNames) || 'لم يطّلع عليه أحد بعد'}</span>
       </div>
     `;
   }
 
   card.innerHTML = `
-    <div class="card-header">
-      <div class="card-title-wrap">
-        <div class="card-badges-row">
-          <span class="badge ${badgeClass}">${categoryIcon} ${categoryLabel}</span>
-          ${statusBadgeHtml}
-          ${priorityBadgeHtml}
-        </div>
+    <!-- 1. شريط الملخص المختصر (ظاهر دائماً: العنوان، الحالة، الأولوية، المسؤول، زر الإجراء) -->
+    <div class="card-compact-summary">
+      <div class="card-badges-row">
+        <span class="badge ${badgeClass}">${categoryIcon} ${categoryLabel}</span>
+        ${statusBadgeHtml}
+        ${priorityBadgeHtml}
+      </div>
+
+      <div class="card-title-row">
         <h3 class="card-title">${escapeHtml(item.title)}</h3>
       </div>
-      ${toolsHtml}
+
+      <div class="card-quick-action-row">
+        <div class="card-assignee-badge">
+          ${assigneeText}
+        </div>
+        <div class="card-primary-action">
+          ${primaryActionBtnHtml}
+          <button type="button" class="btn-card-expand" aria-label="عرض أو إخفاء التفاصيل">
+            <span class="expand-text">تفاصيل</span>
+            <span class="expand-arrow">▾</span>
+          </button>
+        </div>
+      </div>
     </div>
 
-    <div class="card-body">
-      ${item.details ? `<p class="card-details">${escapeHtml(item.details)}</p>` : ''}
+    <!-- 2. التفاصيل الإضافية (تظهر عند فتح البطاقة) -->
+    <div class="card-expanded-details" style="display: none;">
+      ${item.details ? `<div class="card-details-box"><p class="card-details">${escapeHtml(item.details)}</p></div>` : ''}
       ${metaChipsHtml ? `<div class="card-meta-chips">${metaChipsHtml}</div>` : ''}
+      ${announcementReadersHtml}
 
       <div class="card-origin-stamp">
         <span>كتبه: <strong class="origin-author">${escapeHtml(item.author_name)}</strong></span>
         <span class="origin-shift">الشفت ${escapeHtml(item.shift)}</span>
         <span>• ${formatRelativeTime(item.created_at)}</span>
       </div>
-    </div>
 
-    ${footerHtml}
+      <div class="card-expanded-footer">
+        <div class="card-secondary-actions">
+          ${secondaryActionsHtml}
+        </div>
+        ${toolsHtml}
+      </div>
+    </div>
   `;
+
+  // تبديل الفتح والإغلاق عند الضغط
+  const summaryEl = card.querySelector('.card-compact-summary');
+  const detailsPanel = card.querySelector('.card-expanded-details');
+  const arrowEl = card.querySelector('.expand-arrow');
+  const textEl = card.querySelector('.expand-text');
+
+  const toggleExpand = (e) => {
+    if (e && e.target.closest('button:not(.btn-card-expand), a, input, select')) return;
+
+    const isOpen = detailsPanel.style.display !== 'none';
+    if (isOpen) {
+      detailsPanel.style.display = 'none';
+      card.classList.remove('is-open');
+      if (arrowEl) arrowEl.textContent = '▾';
+      if (textEl) textEl.textContent = 'تفاصيل';
+    } else {
+      detailsPanel.style.display = 'flex';
+      card.classList.add('is-open');
+      if (arrowEl) arrowEl.textContent = '▴';
+      if (textEl) textEl.textContent = 'إخفاء';
+    }
+  };
+
+  summaryEl.addEventListener('click', toggleExpand);
+  const expandBtn = card.querySelector('.btn-card-expand');
+  if (expandBtn) {
+    expandBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleExpand();
+    });
+  }
 
   return card;
 }
@@ -1545,20 +1663,119 @@ function showToast(message, type = 'info') {
 }
 
 function showNotice(text, badge = 'تنبيه', showAction = false, actionCallback = null) {
-  const bar = document.getElementById('noticeBar');
-  const badgeEl = document.getElementById('noticeBadge');
-  const textEl = document.getElementById('noticeText');
-  const actionBtn = document.getElementById('noticeActionBtn');
+  showToast(text, 'info');
+}
 
-  badgeEl.textContent = badge;
-  textEl.textContent = text;
-  bar.style.display = 'block';
+// 11.0 Navigation Drawer (القائمة الجانبية للشفت والمحل والحساب)
+function openDrawer() {
+  const drawer = document.getElementById('appDrawer');
+  const backdrop = document.getElementById('drawerBackdrop');
+  if (drawer && backdrop) {
+    drawer.classList.add('open');
+    drawer.setAttribute('aria-hidden', 'false');
+    backdrop.style.display = 'block';
+  }
+}
 
-  if (showAction && actionCallback) {
-    actionBtn.style.display = 'inline-block';
-    actionBtn.onclick = actionCallback;
-  } else {
-    actionBtn.style.display = 'none';
+function closeDrawer() {
+  const drawer = document.getElementById('appDrawer');
+  const backdrop = document.getElementById('drawerBackdrop');
+  if (drawer && backdrop) {
+    drawer.classList.remove('open');
+    drawer.setAttribute('aria-hidden', 'true');
+    backdrop.style.display = 'none';
+  }
+}
+
+// 11.0.1 Filter Modal (لوحة التصفية السريعة للموبايل)
+function openFilterModal() {
+  const modal = document.getElementById('filterModal');
+  if (modal) {
+    const statusSelect = document.getElementById('statusFilter');
+    const prioritySelect = document.getElementById('priorityFilter');
+    const myTasksBtn = document.getElementById('myTasksToggle');
+    if (statusSelect) statusSelect.value = state.filters.status;
+    if (prioritySelect) prioritySelect.value = state.filters.priority;
+    if (myTasksBtn) {
+      myTasksBtn.classList.toggle('active', state.filters.myTasksOnly);
+      myTasksBtn.setAttribute('aria-pressed', state.filters.myTasksOnly ? 'true' : 'false');
+    }
+    modal.style.display = 'flex';
+  }
+}
+
+function closeFilterModal() {
+  const modal = document.getElementById('filterModal');
+  if (modal) modal.style.display = 'none';
+}
+
+// 11.0.2 Profile & Account Settings Modal (تطوير وإدارة الحساب)
+function openProfileModal() {
+  closeDrawer();
+  const modal = document.getElementById('profileModal');
+  if (!modal || !state.user) return;
+
+  const emailInput = document.getElementById('profileEmailInput');
+  const nameInput = document.getElementById('profileFullNameInput');
+  const passInput = document.getElementById('profileNewPasswordInput');
+  const errEl = document.getElementById('profileErrorMsg');
+  const succEl = document.getElementById('profileSuccessMsg');
+
+  if (emailInput) emailInput.value = state.user.email || '';
+  if (nameInput) nameInput.value = state.user.full_name || '';
+  if (passInput) passInput.value = '';
+  if (errEl) errEl.style.display = 'none';
+  if (succEl) succEl.style.display = 'none';
+
+  modal.style.display = 'flex';
+}
+
+function hideProfileModal() {
+  const modal = document.getElementById('profileModal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function handleUpdateProfile(fullName, newPassword) {
+  const supabase = getSupabase();
+  if (!supabase || !state.user) return;
+
+  const errorEl = document.getElementById('profileErrorMsg');
+  const successEl = document.getElementById('profileSuccessMsg');
+  const submitBtn = document.getElementById('saveProfileBtn');
+  errorEl.style.display = 'none';
+  successEl.style.display = 'none';
+  submitBtn.disabled = true;
+
+  try {
+    const cleanName = fullName.trim();
+    if (cleanName.length < 2) {
+      throw new Error('الاسم الكامل يجب ألا يقل عن حرفين');
+    }
+
+    // 1. تحديث جدول profiles
+    const { error: profErr } = await supabase
+      .from('profiles')
+      .update({ full_name: cleanName, updated_at: new Date().toISOString() })
+      .eq('id', state.user.id);
+
+    if (profErr) throw profErr;
+
+    // 2. تحديث كلمة المرور إن كُتبت
+    if (newPassword && newPassword.trim().length >= 6) {
+      const { error: passErr } = await supabase.auth.updateUser({ password: newPassword.trim() });
+      if (passErr) throw passErr;
+    }
+
+    // تحديث الحالة المحلية والواجهة
+    state.user.full_name = cleanName;
+    updateUserHeaderUI();
+    showToast('تم حفظ تعديلات الحساب بنجاح', 'success');
+    hideProfileModal();
+  } catch (err) {
+    errorEl.textContent = getArabicAuthErrorMessage(err.message);
+    errorEl.style.display = 'block';
+  } finally {
+    submitBtn.disabled = false;
   }
 }
 
@@ -2022,27 +2239,90 @@ function setupEventListeners() {
     renderAllViews();
   });
 
-  // إحصائيات سريعة للضغط عليها
+  // النقر على شرائح الإحصائيات للتصفية الفورية
   document.getElementById('statAllCard')?.addEventListener('click', () => {
     state.filters.status = 'all';
-    document.getElementById('statusFilter').value = 'all';
+    const sf = document.getElementById('statusFilter');
+    if (sf) sf.value = 'all';
     renderAllViews();
   });
   document.getElementById('statNewCard')?.addEventListener('click', () => {
     state.filters.status = 'new';
-    document.getElementById('statusFilter').value = 'new';
+    const sf = document.getElementById('statusFilter');
+    if (sf) sf.value = 'new';
     renderAllViews();
   });
   document.getElementById('statProgressCard')?.addEventListener('click', () => {
     state.filters.status = 'in_progress';
-    document.getElementById('statusFilter').value = 'in_progress';
+    const sf = document.getElementById('statusFilter');
+    if (sf) sf.value = 'in_progress';
     renderAllViews();
   });
   document.getElementById('statDoneCard')?.addEventListener('click', () => {
     state.filters.status = 'completed';
-    document.getElementById('statusFilter').value = 'completed';
+    const sf = document.getElementById('statusFilter');
+    if (sf) sf.value = 'completed';
     renderAllViews();
   });
+
+  // أحداث القائمة الجانبية (Navigation Drawer)
+  document.getElementById('openDrawerBtn')?.addEventListener('click', openDrawer);
+  document.getElementById('closeDrawerBtn')?.addEventListener('click', closeDrawer);
+  document.getElementById('drawerBackdrop')?.addEventListener('click', closeDrawer);
+  document.getElementById('drawerJoinStoreBtn')?.addEventListener('click', () => {
+    closeDrawer();
+    openManualInvite();
+  });
+
+  // أحداث لوحة التصفية السريعة (Filter Sheet)
+  document.getElementById('openFilterModalBtn')?.addEventListener('click', openFilterModal);
+  document.getElementById('closeFilterModalBtn')?.addEventListener('click', closeFilterModal);
+
+  document.getElementById('applyFiltersSheetBtn')?.addEventListener('click', () => {
+    state.filters.status = document.getElementById('statusFilter').value;
+    state.filters.priority = document.getElementById('priorityFilter').value;
+    closeFilterModal();
+    renderAllViews();
+  });
+
+  document.getElementById('resetFiltersSheetBtn')?.addEventListener('click', () => {
+    state.filters.status = 'all';
+    state.filters.priority = 'all';
+    state.filters.myTasksOnly = false;
+    document.getElementById('statusFilter').value = 'all';
+    document.getElementById('priorityFilter').value = 'all';
+    const myTasksBtn = document.getElementById('myTasksToggle');
+    if (myTasksBtn) {
+      myTasksBtn.classList.remove('active');
+      myTasksBtn.setAttribute('aria-pressed', 'false');
+    }
+    closeFilterModal();
+    renderAllViews();
+  });
+
+  // زر إضافة طلب عائم للموبايل
+  document.getElementById('floatingAddBtn')?.addEventListener('click', openAddModal);
+
+  // أحداث تعديل الملف الشخصي والحساب
+  document.getElementById('openProfileModalBtn')?.addEventListener('click', openProfileModal);
+  document.getElementById('closeProfileModalBtn')?.addEventListener('click', hideProfileModal);
+  document.getElementById('cancelProfileModalBtn')?.addEventListener('click', hideProfileModal);
+
+  document.getElementById('profileForm')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const fullName = document.getElementById('profileFullNameInput').value;
+    const newPassword = document.getElementById('profileNewPasswordInput').value;
+    await handleUpdateProfile(fullName, newPassword);
+  });
+
+  // إغلاق القائمة الجانبية تلقائياً عند فتح شاشات الدخول أو تبديل الشفت
+  morningBtn.addEventListener('click', () => closeDrawer());
+  eveningBtn.addEventListener('click', () => closeDrawer());
+  document.getElementById('openLoginBtn')?.addEventListener('click', () => closeDrawer());
+  document.getElementById('openRegisterBtn')?.addEventListener('click', () => closeDrawer());
+  document.getElementById('logoutBtn')?.addEventListener('click', () => closeDrawer());
+  document.getElementById('openTeamModalBtn')?.addEventListener('click', () => closeDrawer());
+  document.getElementById('openNewStoreBtn')?.addEventListener('click', () => closeDrawer());
 }
 
 // ========================================================

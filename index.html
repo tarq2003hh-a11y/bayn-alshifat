@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>بين الشفتات | تنظيم العمل وتسليم المهام بين الشفتات</title>
   <meta name="description" content="تطبيق مشترك متعدد المحلات لتنظيم الحجوزات والنواقص والتبليغات وتسليم المهام بين الشفت الصباحي والمسائي">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,91 +13,149 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-  <!-- Header & Context Controls -->
+  <!-- Header: Compact & Fixed (اسم التطبيق + زر القائمة ومؤشر المحل) -->
   <header class="app-header">
     <div class="header-container">
-      <!-- Brand & Store Selection -->
-      <div class="brand-section">
+      <!-- App Brand -->
+      <div class="header-brand">
         <div class="logo-icon">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M16 3h5v5"></path>
             <path d="M8 21H3v-5"></path>
             <path d="M21 3l-7.5 7.5"></path>
             <path d="M3 21l7.5-7.5"></path>
           </svg>
         </div>
-        <div class="brand-text-wrap">
-          <div class="brand-title-row">
-            <h1 class="brand-title">بين الشفتات</h1>
-            <!-- Active Store Dropdown -->
-            <div class="store-badge-wrap" id="storeSelectorWrap" style="display: none;">
-              <span class="store-icon">🏪</span>
-              <select id="activeStoreSelect" class="store-select" aria-label="اختيار المحل النشط">
-                <!-- Dynamically populated -->
-              </select>
-              <button type="button" class="btn-store-action" id="openNewStoreBtn" title="إنشاء محل جديد">+</button>
-            </div>
-          </div>
-          <p class="brand-subtitle" id="headerSubtitle">تسليم المهام والنواقص بين الصباحي والمسائي</p>
+        <div class="brand-info">
+          <h1 class="brand-title">بين الشفتات</h1>
+          <span class="active-store-chip" id="headerStoreChip" style="display: none;">
+            <span class="chip-icon">🏪</span>
+            <span id="headerStoreName">جاري التحميل...</span>
+          </span>
         </div>
       </div>
 
-      <!-- Controls & User Bar -->
-      <div class="user-shift-bar" id="headerControlsBar">
-        <!-- Current Shift Toggle -->
-        <div class="control-group">
-          <span class="control-label">الشفت:</span>
-          <div class="segmented-control" id="shiftSelector" role="radiogroup" aria-label="اختر الشفت الحالي">
-            <button type="button" class="segment-btn active" data-shift="صباحي" id="shiftMorningBtn" role="radio" aria-checked="true">
-              <span class="icon">☀️</span>
-              <span>صباحي</span>
+      <!-- Header Actions: Menu Toggle Button Only -->
+      <div class="header-actions">
+        <button type="button" class="btn-menu-toggle" id="openDrawerBtn" aria-label="فتح القائمة الرئيسية" title="القائمة الرئيسية">
+          <span class="menu-label">القائمة</span>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+          <span class="header-user-dot" id="headerUserIndicator" style="display: none;"></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Drawer (Side Sheet for Store, Shift & Account Settings) -->
+  <div class="drawer-backdrop" id="drawerBackdrop" style="display: none;"></div>
+  <aside class="app-drawer" id="appDrawer" aria-hidden="true">
+    <div class="drawer-header">
+      <div class="drawer-brand">
+        <div class="drawer-logo">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M16 3h5v5"></path>
+            <path d="M8 21H3v-5"></path>
+            <path d="M21 3l-7.5 7.5"></path>
+            <path d="M3 21l7.5-7.5"></path>
+          </svg>
+        </div>
+        <div>
+          <h2 class="drawer-title">بين الشفتات</h2>
+          <span class="drawer-subtitle" id="headerSubtitle">تسليم المهام والنواقص</span>
+        </div>
+      </div>
+      <button type="button" class="drawer-close-btn" id="closeDrawerBtn" aria-label="إغلاق القائمة">✕</button>
+    </div>
+
+    <div class="drawer-body">
+      <!-- 1. Store Management Section -->
+      <div class="drawer-section" id="storeSelectorWrap" style="display: none;">
+        <div class="drawer-section-title">
+          <span>🏪 المحل الحالي</span>
+        </div>
+        <div class="store-picker-box">
+          <select id="activeStoreSelect" class="custom-select drawer-select" aria-label="اختيار المحل النشط">
+            <!-- Dynamically populated -->
+          </select>
+          <div class="store-quick-actions">
+            <button type="button" class="btn btn-outline btn-sm" id="openNewStoreBtn">
+              <span>+ إنشاء محل جديد</span>
             </button>
-            <button type="button" class="segment-btn" data-shift="مسائي" id="shiftEveningBtn" role="radio" aria-checked="false">
-              <span class="icon">🌙</span>
-              <span>مسائي</span>
+            <button type="button" class="btn btn-outline btn-sm" id="drawerJoinStoreBtn">
+              <span>الانضمام برمز</span>
             </button>
           </div>
         </div>
+      </div>
 
-        <!-- Team Management Button (Visible for Owner & Manager) -->
-        <button type="button" class="btn btn-subtle" id="openTeamModalBtn" style="display: none;" title="إدارة الموظفين والصلاحيات وروابط الدعوة">
-          <span>👥 الفريق</span>
+      <!-- 2. Shift Selector Section -->
+      <div class="drawer-section">
+        <div class="drawer-section-title">
+          <span>⏰ الشفت النشط لتسجيل العمل</span>
+        </div>
+        <div class="segmented-control drawer-segmented" id="shiftSelector" role="radiogroup" aria-label="اختر الشفت الحالي">
+          <button type="button" class="segment-btn active" data-shift="صباحي" id="shiftMorningBtn" role="radio" aria-checked="true">
+            <span class="icon">☀️</span>
+            <span>صباحي</span>
+          </button>
+          <button type="button" class="segment-btn" data-shift="مسائي" id="shiftEveningBtn" role="radio" aria-checked="false">
+            <span class="icon">🌙</span>
+            <span>مسائي</span>
+          </button>
+        </div>
+        <p class="drawer-hint">يحدد الشفت الذي تُضاف المهام والطلبات باسمه حالياً.</p>
+      </div>
+
+      <!-- 3. Store Administration (For Owner & Manager) -->
+      <div class="drawer-section" id="drawerAdminSection" style="display: none;">
+        <div class="drawer-section-title">
+          <span>🛡️ إدارة المحل والفرع</span>
+        </div>
+        <button type="button" class="btn btn-subtle btn-block drawer-action-btn" id="openTeamModalBtn">
+          <span>👥 إدارة الفريق وروابط الدعوة</span>
         </button>
+      </div>
 
-        <!-- User Profile & Auth Button -->
-        <div class="user-auth-area">
-          <div class="logged-user-info" id="loggedUserInfo" style="display: none;">
+      <!-- 4. User Profile & Account Settings -->
+      <div class="drawer-section drawer-user-section">
+        <div class="drawer-section-title">
+          <span>👤 الحساب الشخصي</span>
+        </div>
+
+        <!-- Logged In User Card -->
+        <div class="drawer-user-card" id="loggedUserInfo" style="display: none;">
+          <div class="drawer-user-info-row">
             <div class="user-avatar-circle" id="userAvatarText">م</div>
             <div class="user-names-wrap">
               <span class="user-display-name" id="userDisplayName">المستخدم</span>
               <span class="user-role-badge" id="userRoleBadge">موظف</span>
             </div>
-            <button type="button" class="btn-icon-logout" id="logoutBtn" title="تسجيل الخروج">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                <polyline points="16 17 21 12 16 7"></polyline>
-                <line x1="21" y1="12" x2="9" y2="12"></line>
-              </svg>
+          </div>
+          <div class="drawer-user-actions">
+            <button type="button" class="btn btn-outline btn-sm" id="openProfileModalBtn">
+              <span>✏️ تعديل الحساب</span>
+            </button>
+            <button type="button" class="btn btn-danger-outline btn-sm" id="logoutBtn">
+              <span>🚪 تسجيل الخروج</span>
             </button>
           </div>
+        </div>
 
-          <div class="guest-auth-buttons" id="guestAuthButtons">
-            <button type="button" class="btn btn-outline btn-sm" id="openLoginBtn">تسجيل الدخول</button>
-            <button type="button" class="btn btn-primary btn-sm" id="openRegisterBtn">إنشاء حساب</button>
+        <!-- Guest User Box -->
+        <div class="drawer-guest-box" id="guestAuthButtons">
+          <p class="guest-notice">سجّل الدخول للمشاركة في طلبات المحل وإدارة المهام اليومية.</p>
+          <div class="guest-btns-row">
+            <button type="button" class="btn btn-outline btn-block" id="openLoginBtn">تسجيل الدخول</button>
+            <button type="button" class="btn btn-primary btn-block" id="openRegisterBtn">إنشاء حساب جديد</button>
           </div>
         </div>
       </div>
     </div>
-  </header>
-
-  <!-- Notice Banner (Setup Alert or Store Switcher Feedback) -->
-  <div class="notice-bar" id="noticeBar" style="display: none;">
-    <div class="notice-content">
-      <span class="notice-badge" id="noticeBadge">تنبيه</span>
-      <p class="notice-text" id="noticeText"></p>
-      <button type="button" class="notice-reset-btn" id="noticeActionBtn" style="display: none;">إعداد</button>
-    </div>
-  </div>
+  </aside>
 
   <!-- Main Application Content Area -->
   <main class="main-container">
@@ -122,98 +180,74 @@
 
     <!-- View 2: Main Store Workspace (Requires Active Store Membership) -->
     <div id="storeWorkspaceView">
-      <!-- Summary Stats Bar -->
-      <section class="stats-grid" aria-label="ملخص الطلبات">
-        <div class="stat-card stat-all" id="statAllCard" tabindex="0" role="button" aria-label="عرض كل الطلبات">
-          <div class="stat-icon">📋</div>
-          <div class="stat-info">
-            <span class="stat-num" id="statTotalCount">0</span>
-            <span class="stat-label">إجمالي الطلبات</span>
-          </div>
-        </div>
-        <div class="stat-card stat-new" id="statNewCard" tabindex="0" role="button" aria-label="عرض الطلبات الجديدة">
-          <div class="stat-icon">🆕</div>
-          <div class="stat-info">
-            <span class="stat-num" id="statNewCount">0</span>
-            <span class="stat-label">طلبات جديدة</span>
-          </div>
-        </div>
-        <div class="stat-card stat-progress" id="statProgressCard" tabindex="0" role="button" aria-label="عرض قيد المتابعة">
-          <div class="stat-icon">⏳</div>
-          <div class="stat-info">
-            <span class="stat-num" id="statProgressCount">0</span>
-            <span class="stat-label">قيد المتابعة والتجهيز</span>
-          </div>
-        </div>
-        <div class="stat-card stat-done" id="statDoneCard" tabindex="0" role="button" aria-label="عرض الطلبات المكتملة">
-          <div class="stat-icon">✅</div>
-          <div class="stat-info">
-            <span class="stat-num" id="statDoneCount">0</span>
-            <span class="stat-label">مكتملة ومُسلّمة</span>
-          </div>
-        </div>
+      <!-- 1. Compact Summary Stats Strip (شريط صغير للإحصائيات) -->
+      <section class="stats-strip" aria-label="ملخص إحصائيات الطلبات">
+        <button type="button" class="stat-pill stat-all active" id="statAllCard" aria-label="عرض كل الطلبات">
+          <span class="pill-label">الكل:</span>
+          <span class="pill-count" id="statTotalCount">0</span>
+        </button>
+        <button type="button" class="stat-pill stat-new" id="statNewCard" aria-label="عرض الطلبات الجديدة">
+          <span class="pill-label">جديد:</span>
+          <span class="pill-count" id="statNewCount">0</span>
+        </button>
+        <button type="button" class="stat-pill stat-progress" id="statProgressCard" aria-label="عرض قيد المتابعة">
+          <span class="pill-label">متابعة:</span>
+          <span class="pill-count" id="statProgressCount">0</span>
+        </button>
+        <button type="button" class="stat-pill stat-done" id="statDoneCard" aria-label="عرض الطلبات المكتملة">
+          <span class="pill-label">مكتمل:</span>
+          <span class="pill-count" id="statDoneCount">0</span>
+        </button>
       </section>
 
-      <!-- Shift Handover Special Banner (باقي من الشفت السابق) -->
-      <section class="handover-banner" id="handoverSection" aria-label="تسليم الشفت">
-        <div class="handover-content">
-          <div class="handover-header">
-            <div class="handover-tag">
-              <span class="pulse-indicator"></span>
-              <span>باقي من الشفت السابق (<span id="prevShiftName">المسائي</span>)</span>
+      <!-- 2. Handover Mini Strip (شريط مختصر لباقي من الشفت السابق قابل للفتح) -->
+      <section class="handover-mini-strip" id="handoverSection" aria-label="تسليم الشفت">
+        <div class="handover-strip-main">
+          <div class="handover-strip-info">
+            <span class="handover-strip-icon">⚡</span>
+            <div class="handover-strip-text">
+              <span class="handover-strip-title">باقي من الشفت السابق (<span id="prevShiftName">المسائي</span>)</span>
+              <span class="handover-strip-badge"><strong id="prevShiftCount">0</strong> مهام معلقة</span>
             </div>
-            <p class="handover-desc" id="handoverDescText">
-              الطلبات المفتوحة المتبقية من الشفت الآخر لتسليم المهام بسلاسة. المستعجل والأقرب موعداً يظهر أولاً.
-            </p>
           </div>
-          <div class="handover-action">
-            <button type="button" class="btn btn-handover" id="handoverToggleBtn">
-              <span class="btn-icon">⚡</span>
-              <span id="handoverBtnText">عرض مهام الشفت السابق (<span id="prevShiftCount">0</span>)</span>
-            </button>
-          </div>
+          <button type="button" class="btn-handover-toggle" id="handoverToggleBtn">
+            <span id="handoverBtnText">عرض المهام ▾</span>
+          </button>
+        </div>
+        <!-- Collapsible Details Box -->
+        <div class="handover-expanded-panel" id="handoverExpandedPanel" style="display: none;">
+          <p class="handover-desc" id="handoverDescText">
+            الطلبات والمهام المفتوحة المتبقية من الشفت الآخر لتسليم الأعمال بسلاسة. الأقرب موعداً والمستعجل يظهر أولاً.
+          </p>
         </div>
       </section>
 
-      <!-- Main Navigation & Filters Bar -->
-      <div class="toolbar-section">
-        <!-- Tabs (الكل، الحجوزات، النواقص، التبليغات) -->
-        <nav class="category-tabs" aria-label="أقسام الطلبات">
-          <button type="button" class="tab-btn active" data-category="all" id="tabAll">
-            <span class="tab-title">الكل</span>
-            <span class="tab-badge" id="badgeAll">0</span>
-          </button>
-          <button type="button" class="tab-btn" data-category="reservation" id="tabReservation">
-            <span class="tab-icon">📦</span>
-            <span class="tab-title">الحجوزات</span>
-            <span class="tab-badge" id="badgeReservation">0</span>
-          </button>
-          <button type="button" class="tab-btn" data-category="shortage" id="tabShortage">
-            <span class="tab-icon">🛒</span>
-            <span class="tab-title">النواقص</span>
-            <span class="tab-badge" id="badgeShortage">0</span>
-          </button>
-          <button type="button" class="tab-btn" data-category="announcement" id="tabAnnouncement">
-            <span class="tab-icon">📢</span>
-            <span class="tab-title">التبليغات</span>
-            <span class="tab-badge" id="badgeAnnouncement">0</span>
-          </button>
-        </nav>
+      <!-- 3. Category Tabs (الأقسام الأربعة كاملة في صفين للموبايل) -->
+      <nav class="category-tabs" aria-label="أقسام الطلبات">
+        <button type="button" class="tab-btn active" data-category="all" id="tabAll">
+          <span class="tab-icon">📋</span>
+          <span class="tab-title">الكل</span>
+          <span class="tab-badge" id="badgeAll">0</span>
+        </button>
+        <button type="button" class="tab-btn" data-category="reservation" id="tabReservation">
+          <span class="tab-icon">📦</span>
+          <span class="tab-title">الحجوزات</span>
+          <span class="tab-badge" id="badgeReservation">0</span>
+        </button>
+        <button type="button" class="tab-btn" data-category="shortage" id="tabShortage">
+          <span class="tab-icon">🛒</span>
+          <span class="tab-title">النواقص</span>
+          <span class="tab-badge" id="badgeShortage">0</span>
+        </button>
+        <button type="button" class="tab-btn" data-category="announcement" id="tabAnnouncement">
+          <span class="tab-icon">📢</span>
+          <span class="tab-title">التبليغات</span>
+          <span class="tab-badge" id="badgeAnnouncement">0</span>
+        </button>
+      </nav>
 
-        <!-- Primary Action: Add Request -->
-        <div class="primary-action-wrap">
-          <button type="button" class="btn btn-primary btn-add-request" id="openAddModalBtn">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
-            <span>إضافة طلب جديد</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Filter & Search Controls Strip -->
-      <div class="filter-strip">
+      <!-- 4. Search & Filter Bar (البحث ظاهر دائماً + زر تصفية + زر إضافة طلب سريع) -->
+      <div class="search-filter-row">
         <div class="search-box">
           <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8"></circle>
@@ -223,43 +257,28 @@
           <button type="button" id="clearSearchBtn" class="clear-search-btn" title="مسح البحث" style="display: none;">✕</button>
         </div>
 
-        <div class="filter-controls">
-          <!-- Status Filter -->
-          <div class="filter-item">
-            <label for="statusFilter" class="filter-label">الحالة:</label>
-            <select id="statusFilter" class="custom-select filter-select">
-              <option value="all">جميع الحالات</option>
-              <option value="new">جديد فقط</option>
-              <option value="in_progress">قيد المتابعة والتجهيز</option>
-              <option value="ready">جاهز للاستلام</option>
-              <option value="completed">مكتمل ومُسلّم</option>
-            </select>
-          </div>
+        <button type="button" class="btn btn-filter-trigger" id="openFilterModalBtn" aria-label="تصفية الطلبات">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+          </svg>
+          <span>تصفية</span>
+          <span class="filter-count-badge" id="filterCountBadge" style="display: none;">0</span>
+        </button>
 
-          <!-- Priority Filter -->
-          <div class="filter-item">
-            <label for="priorityFilter" class="filter-label">الأولوية:</label>
-            <select id="priorityFilter" class="custom-select filter-select">
-              <option value="all">الكل</option>
-              <option value="urgent">المستعجل فقط ⚡</option>
-              <option value="normal">العادي فقط</option>
-            </select>
-          </div>
-
-          <!-- "طلباتي" Toggle -->
-          <button type="button" class="toggle-pill" id="myTasksToggle" aria-pressed="false">
-            <span class="toggle-icon">👤</span>
-            <span>طلباتي فقط</span>
-            <span class="toggle-badge" id="myTasksCount">0</span>
-          </button>
-        </div>
+        <button type="button" class="btn btn-primary btn-add-inline" id="openAddModalBtn" title="إضافة طلب جديد">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span class="btn-text">إضافة طلب</span>
+        </button>
       </div>
 
       <!-- Active Filters Indicator / Bar -->
       <div class="active-filters-bar" id="activeFiltersBar" style="display: none;">
-        <span class="filters-note">تطبيق تصفية:</span>
+        <span class="filters-note">التصفية النشطة:</span>
         <span class="filter-chip" id="activeFilterTag"></span>
-        <button type="button" class="btn-clear-filters" id="clearAllFiltersBtn">إلغاء التصفية وعرض الكل</button>
+        <button type="button" class="btn-clear-filters" id="clearAllFiltersBtn">إلغاء التصفية</button>
       </div>
 
       <!-- Items List / Cards Grid -->
@@ -279,17 +298,118 @@
           <div class="empty-icon" id="emptyIcon">📭</div>
           <h3 class="empty-title" id="emptyTitle">لا توجد طلبات هنا</h3>
           <p class="empty-desc" id="emptyDesc">لم يُضف أي طلب يطابق هذا القسم أو التصفية الحالية في هذا المحل.</p>
-          <button type="button" class="btn btn-outline" id="emptyActionBtn">إضافة طلب الآن</button>
+          <button type="button" class="btn btn-primary" id="emptyActionBtn">إضافة أول طلب الآن</button>
         </div>
       </section>
     </div>
   </main>
 
+  <!-- Floating Action Button (زر إضافة طلب عائم وواضح وسهل الوصول للموبايل) -->
+  <button type="button" class="btn-fab-add" id="floatingAddBtn" aria-label="إضافة طلب جديد" title="إضافة طلب جديد">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19"></line>
+      <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    <span>إضافة طلب</span>
+  </button>
+
   <!-- ==============================================================================
        Modals Section
        ============================================================================== -->
 
-  <!-- 1. Authentication Modal (تسجيل الدخول / إنشاء حساب / استعادة كلمة المرور) -->
+  <!-- 1. Filter Modal / Bottom Sheet (لوحة التصفية) -->
+  <div class="modal-backdrop" id="filterModal" role="dialog" aria-modal="true" style="display: none;">
+    <div class="modal-card modal-filter-sheet">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="modal-icon">⚙️</span>
+          <h2 class="modal-title">تصفية وفرز الطلبات</h2>
+        </div>
+        <button type="button" class="modal-close-btn" id="closeFilterModalBtn">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Status Filter -->
+        <div class="form-group">
+          <label for="statusFilter" class="form-label">حالة الطلب:</label>
+          <select id="statusFilter" class="custom-select filter-select">
+            <option value="all">جميع الحالات</option>
+            <option value="new">جديد فقط 🆕</option>
+            <option value="in_progress">قيد المتابعة والتجهيز ⏳</option>
+            <option value="ready">جاهز للاستلام 📦</option>
+            <option value="completed">مكتمل ومُسلّم ✅</option>
+          </select>
+        </div>
+
+        <!-- Priority Filter -->
+        <div class="form-group">
+          <label for="priorityFilter" class="form-label">الأولوية:</label>
+          <select id="priorityFilter" class="custom-select filter-select">
+            <option value="all">الكل (عادي ومستعجل)</option>
+            <option value="urgent">المستعجل فقط ⚡</option>
+            <option value="normal">العادي فقط</option>
+          </select>
+        </div>
+
+        <!-- "طلباتي فقط" Toggle -->
+        <div class="form-group">
+          <label class="form-label">تخصيص المهام:</label>
+          <button type="button" class="toggle-pill-full" id="myTasksToggle" aria-pressed="false">
+            <div class="toggle-pill-content">
+              <span class="toggle-icon">👤</span>
+              <span class="toggle-text">عرض طلباتي المسندة إليّ فقط</span>
+            </div>
+            <span class="toggle-badge" id="myTasksCount">0</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-footer filter-footer">
+        <button type="button" class="btn btn-outline" id="resetFiltersSheetBtn">إلغاء التصفية</button>
+        <button type="button" class="btn btn-primary" id="applyFiltersSheetBtn">تطبيق وعرض</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Profile & Account Settings Modal (تطوير الحسابات وتعديل الاسم وكلمة المرور) -->
+  <div class="modal-backdrop" id="profileModal" role="dialog" aria-modal="true" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="modal-icon">👤</span>
+          <h2 class="modal-title">إعدادات الحساب</h2>
+        </div>
+        <button type="button" class="modal-close-btn" id="closeProfileModalBtn">✕</button>
+      </div>
+
+      <form id="profileForm" class="modal-body">
+        <div class="form-group">
+          <label for="profileEmailInput" class="form-label">البريد الإلكتروني:</label>
+          <input type="email" id="profileEmailInput" class="form-input" readonly disabled dir="ltr">
+        </div>
+
+        <div class="form-group">
+          <label for="profileFullNameInput" class="form-label required">الاسم الكامل الظاهر في الشفتات:</label>
+          <input type="text" id="profileFullNameInput" class="form-input" required placeholder="مثال: أحمد عبد الله">
+        </div>
+
+        <div class="form-group">
+          <label for="profileNewPasswordInput" class="form-label">تغيير كلمة المرور (اختياري):</label>
+          <input type="password" id="profileNewPasswordInput" class="form-input" dir="ltr" minlength="6" placeholder="اتركه فارغاً إن لم ترغب في التغيير">
+        </div>
+
+        <div class="auth-error-msg" id="profileErrorMsg"></div>
+        <div class="auth-success-msg" id="profileSuccessMsg"></div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" id="cancelProfileModalBtn">إلغاء</button>
+          <button type="submit" class="btn btn-primary" id="saveProfileBtn">حفظ التعديلات</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. Authentication Modal (تسجيل الدخول / إنشاء حساب / استعادة كلمة المرور) -->
   <div class="modal-backdrop" id="authModal" role="dialog" aria-modal="true" style="display: none;">
     <div class="modal-card modal-auth">
       <div class="modal-header">
@@ -382,7 +502,7 @@
     </div>
   </div>
 
-  <!-- 2. Create Store Modal (إنشاء محل جديد) -->
+  <!-- 4. Create Store Modal (إنشاء محل جديد) -->
   <div class="modal-backdrop" id="createStoreModal" role="dialog" aria-modal="true" style="display: none;">
     <div class="modal-card">
       <div class="modal-header">
@@ -410,7 +530,7 @@
     </div>
   </div>
 
-  <!-- 3. Team Management Modal (إدارة الفريق والدعوات - للمالك والمدير) -->
+  <!-- 5. Team Management Modal (إدارة الفريق والدعوات - للمالك والمدير) -->
   <div class="modal-backdrop" id="teamModal" role="dialog" aria-modal="true" style="display: none;">
     <div class="modal-card modal-large">
       <div class="modal-header">
@@ -506,7 +626,7 @@
     </div>
   </div>
 
-  <!-- 4. Accept Invitation Modal (قبول الدعوة والانضمام) -->
+  <!-- 6. Accept Invitation Modal (قبول الدعوة والانضمام) -->
   <div class="modal-backdrop" id="acceptInviteModal" role="dialog" aria-modal="true" style="display: none;">
     <div class="modal-card modal-confirm">
       <div class="confirm-icon">📩</div>
@@ -526,7 +646,7 @@
     </div>
   </div>
 
-  <!-- 5. Manual Invite Code Entry Modal (إدخال رمز دعوة يدوياً) -->
+  <!-- 7. Manual Invite Code Entry Modal (إدخال رمز دعوة يدوياً) -->
   <div class="modal-backdrop" id="manualInviteModal" role="dialog" aria-modal="true" style="display: none;">
     <div class="modal-card">
       <div class="modal-header">
@@ -547,7 +667,7 @@
     </div>
   </div>
 
-  <!-- 7. Add / Edit Request Modal (حجز / نقص / تبليغ) -->
+  <!-- 8. Add / Edit Request Modal (حجز / نقص / تبليغ) -->
   <div class="modal-backdrop" id="requestModal" role="dialog" aria-modal="true" aria-labelledby="modalHeading" style="display: none;">
     <div class="modal-card">
       <div class="modal-header">
@@ -667,7 +787,7 @@
     </div>
   </div>
 
-  <!-- 8. Delete Confirmation Modal -->
+  <!-- 9. Delete Confirmation Modal -->
   <div class="modal-backdrop" id="deleteConfirmModal" role="dialog" aria-modal="true" style="display: none;">
     <div class="modal-card modal-confirm">
       <div class="confirm-icon">⚠️</div>
@@ -686,7 +806,7 @@
   <footer class="app-footer">
     <div class="footer-container">
       <p class="footer-text">
-        تطبيق <strong>«بين الشفتات»</strong> • نظام مشترك متعدد المحلات لتسليم المهام بين الشفتين.
+        تطبيق <strong>«بين الشفتات»</strong> • نظام موحد لتسليم المهام وتنظيم الحجوزات والنواقص بين الشفتين.
       </p>
     </div>
   </footer>
