@@ -100,8 +100,12 @@ async function handleSessionChange(session) {
     // جلب محلات المستخدم
     await loadUserStores();
 
-    // إذا كان هناك رمز دعوة معلق في الرابط، ابدأ بفحصه
-    checkUrlForInvitation();
+    // إذا كان هناك رمز دعوة معلق في الرابط، ابدأ بفحصه أو قبوله بعد تسجيل الدخول
+    if (state.pendingInviteToken && state.autoAcceptInviteAfterAuth) {
+      await handleAcceptInvitation();
+    } else {
+      await checkUrlForInvitation();
+    }
   } else {
     // تم تسجيل الخروج: امسح كافة بيانات المحل السابق من الواجهة والذاكرة
     clearActiveStoreData();
@@ -577,27 +581,59 @@ function handleRealtimeReadsChange(payload) {
 }
 
 // ========================================================
-// 6. دعوات الموظفين والانضمام (Invitations)
+// 6. دعوات الموظفين والانضمام (Invitations System)
 // ========================================================
 
-// فحص وجود رمز دعوة في الرابط عند الفتح
-async function checkUrlForInvitation() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const token = urlParams.get('invite');
+// دالة تجريد وتنظيف رمز الدعوة سواء تم إدخاله كرمز أو رابط كامل
+function extractInviteToken(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  let str = raw.trim();
+  if (str.includes('invite=')) {
+    str = str.split('invite=')[1].split('&')[0].trim();
+  }
+  return str;
+}
+
+// فحص وجود رمز دعوة (من الرابط أو من الإدخال اليدوي)
+async function checkUrlForInvitation(explicitToken = null) {
+  let token = extractInviteToken(explicitToken || state.pendingInviteToken);
+
+  if (!token) {
+    const urlParams = new URLSearchParams(window.location.search);
+    token = extractInviteToken(urlParams.get('invite'));
+  }
+
   if (!token) return;
 
   state.pendingInviteToken = token;
   const supabase = getSupabase();
   if (!supabase) return;
 
-  // جلب معلومات الدعوة الآمنة (اسم المحل والدور فقط)
   try {
     const { data, error } = await supabase.rpc('rpc_get_invitation_info', {
       invite_token: token
     });
 
-    if (error || !data || !data.valid) {
+    if (error) {
+      console.error('Error fetching invitation info:', error);
+      showToast(getArabicAuthErrorMessage(error.message) || 'رمز الدعوة غير صحيح', 'error');
+      state.pendingInviteToken = null;
+      return;
+    }
+
+    if (!data || !data.valid) {
       showToast(data?.message || 'رمز الدعوة غير صالح أو منتهي الصلاحية', 'error');
+      state.pendingInviteToken = null;
+      return;
+    }
+
+    // إذا كان المستخدم عضواً بالفعل في المحل المطلوب، يتم توجيهه مباشرة
+    if (state.user && state.stores.some(s => s.id === data.store_id)) {
+      showToast(`أنت عضو بالفعل في محل "${data.store_name}"`, 'info');
+      await switchActiveStore(data.store_id);
+      state.pendingInviteToken = null;
+      const cleanUrl = window.location.origin + window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
       return;
     }
 
@@ -605,6 +641,7 @@ async function checkUrlForInvitation() {
     openAcceptInviteModal(data);
   } catch (err) {
     console.error('Error verifying invitation:', err);
+    showToast('حدث خطأ أثناء فحص رمز الدعوة', 'error');
   }
 }
 
@@ -623,22 +660,29 @@ async function handleAcceptInvitation() {
   const supabase = getSupabase();
   if (!supabase) return;
 
+  const token = extractInviteToken(state.pendingInviteToken);
+  if (!token) {
+    showToast('رمز الدعوة غير متاح أو تم استخدامه', 'error');
+    return;
+  }
+
   if (!state.user) {
     // يجب تسجيل الدخول أولاً لقبول الدعوة
     document.getElementById('acceptInviteModal').style.display = 'none';
     showToast('يرجى تسجيل الدخول أو إنشاء حساب أولاً للانضمام للمحل', 'info');
+    state.autoAcceptInviteAfterAuth = true;
     openAuthModal('login');
     return;
   }
 
   const confirmBtn = document.getElementById('confirmAcceptInviteBtn');
   const errorEl = document.getElementById('acceptInviteErrorMsg');
-  errorEl.style.display = 'none';
-  confirmBtn.disabled = true;
+  if (errorEl) errorEl.style.display = 'none';
+  if (confirmBtn) confirmBtn.disabled = true;
 
   try {
     const { data, error } = await supabase.rpc('rpc_accept_invitation', {
-      invite_token: state.pendingInviteToken
+      invite_token: token
     });
 
     if (error) throw error;
@@ -650,6 +694,7 @@ async function handleAcceptInvitation() {
     const cleanUrl = window.location.origin + window.location.pathname;
     window.history.replaceState({}, document.title, cleanUrl);
     state.pendingInviteToken = null;
+    state.autoAcceptInviteAfterAuth = false;
 
     // إعادة تحميل المحلات والتبديل للمحل الجديد
     await loadUserStores();
@@ -657,10 +702,15 @@ async function handleAcceptInvitation() {
       await switchActiveStore(data.store_id);
     }
   } catch (err) {
-    errorEl.textContent = err.message || 'تعذر قبول الدعوة';
-    errorEl.style.display = 'block';
+    const errMsg = getArabicAuthErrorMessage(err.message) || err.message || 'تعذر قبول الدعوة';
+    if (errorEl) {
+      errorEl.textContent = errMsg;
+      errorEl.style.display = 'block';
+    } else {
+      showToast(errMsg, 'error');
+    }
   } finally {
-    confirmBtn.disabled = false;
+    if (confirmBtn) confirmBtn.disabled = false;
   }
 }
 
@@ -681,7 +731,7 @@ async function handleCreateInvitation(role, hours) {
 
     if (error) throw error;
 
-    // بناء رابط الدعوة ليعمل على مسار النشر الحالي (GitHub Pages أو Local)
+    // بناء رابط الدعوة النظيف
     const baseOrigin = window.location.origin;
     const basePath = window.location.pathname;
     const inviteUrl = `${baseOrigin}${basePath}?invite=${data.token}`;
@@ -694,7 +744,7 @@ async function handleCreateInvitation(role, hours) {
     showToast('تم إنشاء رابط الدعوة بنجاح', 'success');
     await loadTeamData();
   } catch (err) {
-    showToast(err.message || 'تعذر إنشاء رابط الدعوة', 'error');
+    showToast(getArabicAuthErrorMessage(err.message) || 'تعذر إنشاء رابط الدعوة', 'error');
   } finally {
     btn.disabled = false;
   }
@@ -2022,13 +2072,21 @@ function setupEventListeners() {
   });
   document.getElementById('manualInviteForm')?.addEventListener('submit', async e => {
     e.preventDefault();
-    let val = document.getElementById('manualInviteTokenInput').value.trim();
-    if (val.includes('invite=')) {
-      val = val.split('invite=')[1].split('&')[0];
+    const inputVal = document.getElementById('manualInviteTokenInput').value;
+    const token = extractInviteToken(inputVal);
+    const errEl = document.getElementById('manualInviteErrorMsg');
+    if (errEl) errEl.style.display = 'none';
+
+    if (!token) {
+      if (errEl) {
+        errEl.textContent = 'يرجى إدخال رمز دعوة أو رابط صحيح';
+        errEl.style.display = 'block';
+      }
+      return;
     }
-    state.pendingInviteToken = val;
+
     document.getElementById('manualInviteModal').style.display = 'none';
-    checkUrlForInvitation();
+    await checkUrlForInvitation(token);
   });
 
   // زر قبول الدعوة

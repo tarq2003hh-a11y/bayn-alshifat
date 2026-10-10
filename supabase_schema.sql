@@ -853,7 +853,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ==============================================================================
 DO $$
 BEGIN
-    -- إضافة الجداول لـ supabase_realtime إذا لم تكن مضافة
     ALTER PUBLICATION supabase_realtime ADD TABLE public.requests;
     ALTER PUBLICATION supabase_realtime ADD TABLE public.announcements;
     ALTER PUBLICATION supabase_realtime ADD TABLE public.announcement_reads;
@@ -861,3 +860,14 @@ EXCEPTION
     WHEN duplicate_object THEN NULL;
     WHEN undefined_object THEN NULL;
 END $$;
+
+-- ==============================================================================
+-- 7. صلاحيات تنفيذ الدوال (RPC Function Execution Grants)
+-- ==============================================================================
+GRANT EXECUTE ON FUNCTION public.rpc_get_invitation_info(TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_accept_invitation(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_create_invitation(UUID, TEXT, INT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_create_store(TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_revoke_invitation(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_remove_member(UUID, UUID) TO authenticated;
+
