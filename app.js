@@ -880,7 +880,10 @@ function renderTeamTables() {
     const canRevoke = !inv.is_revoked && !inv.used_at && !isExpired;
 
     tr.innerHTML = `
-      <td><code style="font-size:0.75rem;">${inv.token.substring(0, 8)}...</code></td>
+      <td>
+        <code style="font-size:0.85rem; font-weight:700; color:var(--primary);">${escapeHtml(inv.token)}</code>
+        <button type="button" class="btn-tool" style="margin-right:6px;" title="نسخ الرمز" onclick="navigator.clipboard.writeText('${escapeHtml(inv.token)}'); showToast('تم نسخ رمز الدعوة', 'success')">📋</button>
+      </td>
       <td>${inv.role === 'manager' ? 'مدير' : 'موظف'}</td>
       <td>${new Date(inv.expires_at).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}</td>
       <td><strong style="color:${statusColor};font-size:0.8rem;">${statusText}</strong></td>

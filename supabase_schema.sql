@@ -452,8 +452,8 @@ BEGIN
         RAISE EXCEPTION 'الدور المطلوب غير صحيح';
     END IF;
 
-    -- توليد رمز عشوائي آمن تشفيرياً (32 حرف هكسا)
-    v_token := encode(gen_random_bytes(24), 'hex');
+    -- توليد رمز عشوائي قصير ومرتب باسم التطبيق (مثال: shifat-7A9K2M)
+    v_token := 'shifat-' || upper(substring(replace(gen_random_uuid()::text, '-', ''), 1, 6));
     v_expires_at := timezone('utc'::text, now()) + (duration_hours || ' hours')::INTERVAL;
 
     INSERT INTO public.invitations (store_id, role, token, created_by, expires_at)
@@ -478,7 +478,7 @@ BEGIN
     INTO inv
     FROM public.invitations i
     JOIN public.stores s ON s.id = i.store_id
-    WHERE i.token = invite_token;
+    WHERE lower(i.token) = lower(trim(invite_token));
 
     IF NOT FOUND THEN
         RETURN jsonb_build_object('valid', false, 'reason', 'not_found', 'message', 'رمز الدعوة غير صحيح');
@@ -522,7 +522,7 @@ BEGIN
     INTO inv
     FROM public.invitations i
     JOIN public.stores s ON s.id = i.store_id
-    WHERE i.token = invite_token
+    WHERE lower(i.token) = lower(trim(invite_token))
     FOR UPDATE;
 
     IF NOT FOUND THEN
