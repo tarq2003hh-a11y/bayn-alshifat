@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://tarq2003hh-a11y.github.io/bayn-alshifat/sitemap.xml
