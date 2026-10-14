@@ -9,6 +9,26 @@
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://tarq2003hh-a11y.github.io/bayn-alshifat/">
 
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+
+  <!-- PWA Theme & Status Bar -->
+  <meta name="theme-color" content="#06b6d4">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="بين الشفتات">
+  <meta name="application-name" content="بين الشفتات">
+  <meta name="msapplication-TileColor" content="#0f172a">
+  <meta name="msapplication-TileImage" content="icons/icon-144x144.png">
+
+  <!-- Favicons & Apple Touch Icons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180x180.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152x152.png">
+  <link rel="apple-touch-icon" sizes="144x144" href="icons/icon-144x144.png">
+
   <!-- Open Graph / WhatsApp / Facebook -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://tarq2003hh-a11y.github.io/bayn-alshifat/">
@@ -846,5 +866,176 @@
   <!-- Scripts: Configuration and Main Application Logic -->
   <script src="config.js"></script>
   <script src="app.js"></script>
+
+  <!-- PWA: Service Worker Registration & Install Prompt -->
+  <script>
+    // ─── Service Worker Registration ───────────────────────
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/bayn-alshifat/sw.js', { scope: '/bayn-alshifat/' })
+          .then((reg) => {
+            console.log('[PWA] Service Worker registered. Scope:', reg.scope);
+
+            // إشعار بتوفر تحديث جديد
+            reg.addEventListener('updatefound', () => {
+              const newWorker = reg.installing;
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  showUpdateBanner();
+                }
+              });
+            });
+          })
+          .catch((err) => console.error('[PWA] Service Worker registration failed:', err));
+      });
+    }
+
+    // ─── بانر التحديث ─────────────────────────────────────
+    function showUpdateBanner() {
+      const banner = document.createElement('div');
+      banner.id = 'pwa-update-banner';
+      banner.setAttribute('role', 'alert');
+      banner.innerHTML = `
+        <style>
+          #pwa-update-banner {
+            position: fixed;
+            bottom: 1.25rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            color: #e2e8f0;
+            border: 1px solid rgba(6,182,212,0.3);
+            border-radius: 14px;
+            padding: 0.875rem 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-family: 'Tajawal', sans-serif;
+            font-size: 0.9rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            z-index: 99999;
+            animation: slideUp 0.35s ease;
+            max-width: calc(100vw - 2rem);
+          }
+          @keyframes slideUp {
+            from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+            to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+          }
+          #pwa-update-banner button {
+            background: linear-gradient(135deg, #06b6d4, #3b82f6);
+            color: white;
+            border: none;
+            padding: 0.4rem 1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            white-space: nowrap;
+          }
+        </style>
+        <span>🔄 يوجد تحديث جديد!</span>
+        <button onclick="navigator.serviceWorker.controller.postMessage({type:'SKIP_WAITING'}); window.location.reload();">تحديث الآن</button>
+        <button onclick="this.closest('#pwa-update-banner').remove()" style="background:transparent;border:1px solid rgba(255,255,255,0.2);color:#94a3b8;">لاحقاً</button>
+      `;
+      document.body.appendChild(banner);
+    }
+
+    // ─── Install Prompt (زر التثبيت) ──────────────────────
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      showInstallBanner();
+    });
+
+    function showInstallBanner() {
+      // تجنب عرضه أكثر من مرة
+      if (localStorage.getItem('pwa-install-dismissed')) return;
+
+      const banner = document.createElement('div');
+      banner.id = 'pwa-install-banner';
+      banner.setAttribute('role', 'complementary');
+      banner.innerHTML = `
+        <style>
+          #pwa-install-banner {
+            position: fixed;
+            bottom: 1.25rem;
+            inset-inline: 0.75rem;
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            color: #e2e8f0;
+            border: 1px solid rgba(6,182,212,0.35);
+            border-radius: 16px;
+            padding: 1rem 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-family: 'Tajawal', sans-serif;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(6,182,212,0.1);
+            z-index: 99998;
+            animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1);
+            max-width: 480px;
+            margin: 0 auto;
+          }
+          #pwa-install-banner .pwa-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 12px;
+            flex-shrink: 0;
+          }
+          #pwa-install-banner .pwa-text { flex: 1; }
+          #pwa-install-banner .pwa-text strong { display: block; font-size: 0.95rem; margin-bottom: 0.2rem; }
+          #pwa-install-banner .pwa-text span { font-size: 0.8rem; color: #94a3b8; }
+          #pwa-install-banner .pwa-actions { display: flex; flex-direction: column; gap: 0.4rem; }
+          #pwa-install-banner .btn-install {
+            background: linear-gradient(135deg, #06b6d4, #3b82f6);
+            color: white; border: none;
+            padding: 0.5rem 1.1rem;
+            border-radius: 9px;
+            font-size: 0.85rem; font-weight: 700;
+            cursor: pointer; font-family: inherit;
+            white-space: nowrap;
+          }
+          #pwa-install-banner .btn-dismiss {
+            background: transparent;
+            border: none; color: #64748b;
+            font-size: 0.78rem; cursor: pointer;
+            font-family: inherit; text-align: center;
+          }
+          #pwa-install-banner .btn-dismiss:hover { color: #94a3b8; }
+        </style>
+        <img src="icons/icon-192x192.png" class="pwa-icon" alt="أيقونة التطبيق">
+        <div class="pwa-text">
+          <strong>ثبّت التطبيق على جهازك</strong>
+          <span>للوصول السريع بدون متصفح</span>
+        </div>
+        <div class="pwa-actions">
+          <button class="btn-install" id="pwa-install-btn">تثبيت</button>
+          <button class="btn-dismiss" id="pwa-dismiss-btn">لا شكراً</button>
+        </div>
+      `;
+      document.body.appendChild(banner);
+
+      document.getElementById('pwa-install-btn').addEventListener('click', async () => {
+        banner.remove();
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          const { outcome } = await deferredPrompt.userChoice;
+          console.log('[PWA] Install prompt outcome:', outcome);
+          deferredPrompt = null;
+        }
+      });
+
+      document.getElementById('pwa-dismiss-btn').addEventListener('click', () => {
+        banner.remove();
+        localStorage.setItem('pwa-install-dismissed', '1');
+      });
+    }
+
+    window.addEventListener('appinstalled', () => {
+      console.log('[PWA] App installed successfully!');
+      deferredPrompt = null;
+    });
+  </script>
 </body>
 </html>
