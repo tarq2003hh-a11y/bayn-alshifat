@@ -60,7 +60,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=1.2.0">
   <!-- Supabase Official Client JS -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -817,6 +817,49 @@
           </div>
         </div>
 
+        <!-- Image Attachments Section for Orders -->
+        <div class="form-group" id="attachmentsFormSection">
+          <div class="attachments-header-row">
+            <label class="form-label" style="margin-bottom: 0;">
+              📷 مرفقات الصور <span class="attachments-counter" id="attachmentsCountBadge">(0 من 5)</span>
+            </label>
+            <span class="attachments-limits-hint">JPG, PNG, WebP • حد أقصى 5 صور حتى 2MB</span>
+          </div>
+
+          <!-- Buttons and dropzone -->
+          <div class="attachments-picker-actions">
+            <button type="button" class="btn btn-subtle btn-attach-trigger" id="btnPickGallery">
+              🖼️ اختيار من المعرض
+            </button>
+            <button type="button" class="btn btn-subtle btn-attach-trigger" id="btnPickCamera">
+              📷 التقاط بالكاميرا
+            </button>
+            <!-- Hidden inputs -->
+            <input type="file" id="reqGalleryInput" accept="image/jpeg,image/png,image/webp" multiple style="display: none;">
+            <input type="file" id="reqCameraInput" accept="image/jpeg,image/png,image/webp" capture="environment" style="display: none;">
+          </div>
+
+          <!-- Dropzone area for desktop drag and drop -->
+          <div class="attachments-dropzone" id="attachmentsDropzone">
+            <span class="dropzone-icon">📎</span>
+            <span class="dropzone-text">أو اسحب الصور وأفلتها هنا</span>
+          </div>
+
+          <!-- Upload Status / Retry Notice Container -->
+          <div class="attachments-retry-box" id="attachmentsRetryNotice" style="display: none;">
+            <div class="retry-box-header">
+              <span class="retry-box-icon">⚠️</span>
+              <span class="retry-box-msg" id="attachmentsRetryMsg">تم حفظ الطلب بنجاح، لكن تعذر رفع بعض الصور.</span>
+            </div>
+            <button type="button" class="btn btn-sm btn-primary" id="btnRetryFailedUploads">
+              🔄 إعادة محاولة رفع الصور الفاشلة
+            </button>
+          </div>
+
+          <!-- Image previews grid -->
+          <div class="attachments-preview-grid" id="attachmentsPreviewGrid"></div>
+        </div>
+
         <!-- Auto-recorded info badge -->
         <div class="form-auto-info">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -852,6 +895,55 @@
     </div>
   </div>
 
+  <!-- 10. Mobile-Friendly Image Lightbox Viewer Modal -->
+  <div class="modal-backdrop image-viewer-backdrop" id="imageViewerModal" role="dialog" aria-modal="true" aria-label="عارض الصور" style="display: none;">
+    <div class="image-viewer-container">
+      <div class="image-viewer-header">
+        <span class="viewer-counter" id="viewerCounter">صورة 1 من 1</span>
+        <div class="viewer-actions">
+          <a href="#" id="viewerDownloadBtn" class="viewer-btn" target="_blank" rel="noopener noreferrer" title="فتح الصورة الأصلية">
+            🔍 عرض بالحجم الكامل
+          </a>
+          <button type="button" class="viewer-btn viewer-close-btn" id="viewerCloseBtn" aria-label="إغلاق العارض">
+            ✕
+          </button>
+        </div>
+      </div>
+
+      <div class="image-viewer-body" id="viewerBody">
+        <button type="button" class="viewer-nav-btn viewer-prev-btn" id="viewerPrevBtn" aria-label="الصورة السابقة">
+          ▶
+        </button>
+
+        <div class="viewer-img-wrapper" id="viewerImgWrapper">
+          <div class="viewer-spinner" id="viewerSpinner" style="display: none;"></div>
+          <img src="" alt="صورة الطلب" id="viewerImage" class="viewer-main-img" loading="eager">
+        </div>
+
+        <button type="button" class="viewer-nav-btn viewer-next-btn" id="viewerNextBtn" aria-label="الصورة التالية">
+          ◀
+        </button>
+      </div>
+
+      <div class="image-viewer-footer">
+        <span class="viewer-nav-hint">اسحب للتنقل • أسهم لوحة المفاتيح ◀ ▶ • زر Escape للإغلاق</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 11. Attachment Delete Confirmation Modal -->
+  <div class="modal-backdrop" id="attachmentDeleteModal" role="dialog" aria-modal="true" style="display: none;">
+    <div class="modal-card modal-confirm">
+      <div class="confirm-icon">🗑️</div>
+      <h3 class="confirm-title">حذف الصورة المرفقة</h3>
+      <p class="confirm-message" id="attachmentDeleteMessage">هل أنت متأكد من رغبتك في حذف هذه الصورة من الطلب نهائياً؟</p>
+      <div class="confirm-actions">
+        <button type="button" class="btn btn-outline" id="cancelAttachmentDeleteBtn">تراجع</button>
+        <button type="button" class="btn btn-danger" id="confirmAttachmentDeleteBtn">نعم، احذف الصورة</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
@@ -864,21 +956,33 @@
   </footer>
 
   <!-- Scripts: Configuration and Main Application Logic -->
-  <script src="config.js"></script>
-  <script src="app.js"></script>
+  <script src="config.js?v=1.2.0"></script>
+  <script src="app.js?v=1.2.0"></script>
 
   <!-- PWA: Service Worker Registration & Install Prompt -->
   <script>
     // ─── Service Worker Registration ───────────────────────
     if ('serviceWorker' in navigator) {
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
+
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/bayn-alshifat/sw.js', { scope: '/bayn-alshifat/' })
+        navigator.serviceWorker.register('./sw.js')
           .then((reg) => {
             console.log('[PWA] Service Worker registered. Scope:', reg.scope);
+
+            // فحص فوري للتحديثات عند كل فتح للصفحة
+            try { reg.update(); } catch (e) {}
 
             // إشعار بتوفر تحديث جديد
             reg.addEventListener('updatefound', () => {
               const newWorker = reg.installing;
+              if (!newWorker) return;
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                   showUpdateBanner();
@@ -935,7 +1039,7 @@
           }
         </style>
         <span>🔄 يوجد تحديث جديد!</span>
-        <button onclick="navigator.serviceWorker.controller.postMessage({type:'SKIP_WAITING'}); window.location.reload();">تحديث الآن</button>
+        <button onclick="if(navigator.serviceWorker && navigator.serviceWorker.controller){navigator.serviceWorker.controller.postMessage({type:'SKIP_WAITING'});} setTimeout(()=>window.location.reload(), 150);">تحديث الآن</button>
         <button onclick="this.closest('#pwa-update-banner').remove()" style="background:transparent;border:1px solid rgba(255,255,255,0.2);color:#94a3b8;">لاحقاً</button>
       `;
       document.body.appendChild(banner);

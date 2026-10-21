@@ -2,8 +2,8 @@
   "name": "بين الشفتات",
   "short_name": "بين الشفتات",
   "description": "تطبيق مشترك متعدد المحلات لتنظيم الحجوزات والنواقص والتبليغات وتسليم المهام بين الشفتين.",
-  "start_url": "/bayn-alshifat/",
-  "scope": "/bayn-alshifat/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0f172a",
@@ -75,14 +75,14 @@
       "name": "الحجوزات",
       "short_name": "الحجوزات",
       "description": "إضافة حجز جديد",
-      "url": "/bayn-alshifat/#bookings",
+      "url": "./#bookings",
       "icons": [{ "src": "icons/icon-96x96.png", "sizes": "96x96" }]
     },
     {
       "name": "النواقص",
       "short_name": "النواقص",
       "description": "تسجيل نقص",
-      "url": "/bayn-alshifat/#shortages",
+      "url": "./#shortages",
       "icons": [{ "src": "icons/icon-96x96.png", "sizes": "96x96" }]
     }
   ]

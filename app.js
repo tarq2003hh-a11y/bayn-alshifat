@@ -20,6 +20,10 @@ const state = {
   announcementReads: [],
   members: [],
   invitations: [],
+  requestAttachments: [], // قائمة مرفقات طلبات المحل النشط
+  stagedAttachments: [],  // الصور الجاري تجهيزها للرفع في النافذة
+  deletingAttachmentInfo: null, // المرفق قيد تأكيد الحذف
+  activeViewer: null,    // حالة عارض الصور النشط { requestId, attachments: [], currentIndex: 0 }
 
   // الفلاتر والعرض
   filters: {
@@ -132,6 +136,25 @@ function clearActiveStoreData() {
   state.announcementReads = [];
   state.members = [];
   state.invitations = [];
+
+  // تنظيف الروابط المؤقتة والمعاينات ومرفقات المحل النشط
+  if (state.stagedAttachments && state.stagedAttachments.length > 0) {
+    state.stagedAttachments.forEach(item => {
+      if (item.previewUrl) {
+        try { URL.revokeObjectURL(item.previewUrl); } catch (e) {}
+      }
+    });
+  }
+  state.stagedAttachments = [];
+  state.requestAttachments = [];
+  state.deletingAttachmentInfo = null;
+
+  if (typeof closeImageViewer === 'function') {
+    closeImageViewer();
+  }
+  if (typeof signedUrlsCache !== 'undefined') {
+    signedUrlsCache.clear();
+  }
 }
 
 function updateUserHeaderUI() {
@@ -500,6 +523,19 @@ async function loadStoreData(storeId) {
     if (readErr) throw readErr;
     state.announcementReads = reads || [];
 
+    // 4. جلب المرفقات الخاصة بطلبات هذا المحل
+    const { data: attachments, error: attErr } = await supabase
+      .from('request_attachments')
+      .select('*')
+      .eq('store_id', storeId)
+      .order('created_at', { ascending: true });
+
+    if (!attErr && attachments) {
+      state.requestAttachments = attachments;
+    } else {
+      state.requestAttachments = [];
+    }
+
     renderAllViews();
   } catch (err) {
     console.error('Error fetching store data:', err);
@@ -541,6 +577,13 @@ function setupStoreRealtime(storeId) {
         handleRealtimeReadsChange(payload);
       }
     )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'request_attachments', filter: `store_id=eq.${storeId}` },
+      payload => {
+        handleRealtimeAttachmentChange(payload);
+      }
+    )
     .subscribe(status => {
       console.log(`Realtime status for store ${storeId}:`, status);
     });
@@ -578,6 +621,24 @@ function handleRealtimeReadsChange(payload) {
     state.announcementReads = state.announcementReads.filter(r => r.id !== oldRecord.id);
   }
   renderAllViews();
+}
+
+function handleRealtimeAttachmentChange(payload) {
+  const { eventType, new: newRecord, old: oldRecord } = payload;
+  if (eventType === 'INSERT') {
+    if (!state.requestAttachments.some(a => a.id === newRecord.id)) {
+      state.requestAttachments = [...state.requestAttachments, newRecord];
+    }
+  } else if (eventType === 'DELETE') {
+    state.requestAttachments = state.requestAttachments.filter(a => a.id !== oldRecord.id);
+    if (oldRecord.file_path && typeof signedUrlsCache !== 'undefined') {
+      signedUrlsCache.delete(oldRecord.file_path);
+    }
+  }
+  renderAllViews();
+  if (state.editingRequestId) {
+    renderModalAttachments();
+  }
 }
 
 // ========================================================
@@ -1052,6 +1113,500 @@ window.handleAcknowledge = async function(announcementId) {
 };
 
 // ========================================================
+// 8.5 وحدة مرفقات الصور وعارض الصور (Attachments & Lightbox Viewer)
+// ========================================================
+
+const signedUrlsCache = new Map(); // key: file_path -> { url, expiresAt }
+const ALLOWED_ATTACHMENT_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_IMAGE_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+const MAX_IMAGE_DIMENSION = 2000;
+const MAX_ATTACHMENTS_COUNT = 5;
+
+// جلب الرابط الموقع للمرفق مع كاش في الذاكرة وتجديد تلقائي عند الانتهاء
+async function getAttachmentSignedUrl(filePath, forceRefresh = false) {
+  if (!filePath) return null;
+  const now = Date.now();
+  const cached = signedUrlsCache.get(filePath);
+
+  // صلاحية الرابط في الذاكرة 50 دقيقة قبل التجديد (صلاحية Supabase 60 دقيقة = 3600 ثانية)
+  if (!forceRefresh && cached && cached.expiresAt > now + 60000) {
+    return cached.url;
+  }
+
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase.storage
+      .from('request_attachments')
+      .createSignedUrl(filePath, 3600);
+
+    if (error || !data || !data.signedUrl) {
+      console.warn('Failed to get signed url for', filePath, error);
+      return null;
+    }
+
+    signedUrlsCache.set(filePath, {
+      url: data.signedUrl,
+      expiresAt: now + 3500 * 1000
+    });
+    return data.signedUrl;
+  } catch (err) {
+    console.error('Error in getAttachmentSignedUrl:', err);
+    return null;
+  }
+}
+
+// ضغط ومعالجة الصور مع الحفاظ على وضوح النصوص والوصولات واتجاه الصورة الصحيح
+async function processAndCompressImage(file) {
+  if (!file) throw new Error('الملف غير صالح');
+
+  // التحقق من نوع الملف
+  if (!ALLOWED_ATTACHMENT_TYPES.includes(file.type.toLowerCase())) {
+    throw new Error(`نوع الملف (${escapeHtml(file.name)}) غير مدعوم. الصيغ المسموح بها هي: JPG، PNG، WebP فقط.`);
+  }
+
+  // تحميل الصورة عبر ImageBitmap أو HTMLImageElement
+  let bitmap = null;
+  try {
+    if (window.createImageBitmap) {
+      bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    }
+  } catch (e) {
+    bitmap = null;
+  }
+
+  return new Promise((resolve, reject) => {
+    const processImageSource = (source, origW, origH) => {
+      try {
+        let targetW = origW;
+        let targetH = origH;
+
+        // لا نكبر الصور الصغيرة؛ فقط نصغر إذا تجاوز أحد الأضلاع 2000 بكسل
+        if (origW > MAX_IMAGE_DIMENSION || origH > MAX_IMAGE_DIMENSION) {
+          if (origW > origH) {
+            targetH = Math.round((origH * MAX_IMAGE_DIMENSION) / origW);
+            targetW = MAX_IMAGE_DIMENSION;
+          } else {
+            targetW = Math.round((origW * MAX_IMAGE_DIMENSION) / origH);
+            targetH = MAX_IMAGE_DIMENSION;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = targetW;
+        canvas.height = targetH;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(source, 0, 0, targetW, targetH);
+
+        // تحديد نوع الإخراج
+        let outputMime = file.type;
+        if (outputMime !== 'image/png' && outputMime !== 'image/webp') {
+          outputMime = 'image/jpeg';
+        }
+
+        const attemptExport = (quality) => {
+          canvas.toBlob(blob => {
+            if (!blob) {
+              return reject(new Error('تعذر معالجة وضغط الصورة'));
+            }
+            if (blob.size <= MAX_IMAGE_FILE_SIZE || quality <= 0.5) {
+              if (blob.size > MAX_IMAGE_FILE_SIZE) {
+                return reject(new Error(`حجم الصورة (${escapeHtml(file.name)}) بعد الضغط يتجاوز الحد الأقصى 2 ميجابايت`));
+              }
+              const ext = outputMime === 'image/webp' ? 'webp' : outputMime === 'image/png' ? 'png' : 'jpg';
+              resolve({
+                id: 'staged_' + Math.random().toString(36).substring(2, 9),
+                file,
+                blob,
+                fileType: outputMime,
+                fileSize: blob.size,
+                originalName: file.name,
+                extension: ext,
+                previewUrl: URL.createObjectURL(blob),
+                width: targetW,
+                height: targetH,
+                status: 'ready',
+                error: null
+              });
+            } else {
+              attemptExport(quality - 0.15);
+            }
+          }, outputMime, quality);
+        };
+
+        attemptExport(0.88);
+      } catch (err) {
+        reject(err);
+      }
+    };
+
+    if (bitmap) {
+      processImageSource(bitmap, bitmap.width, bitmap.height);
+    } else {
+      const img = new Image();
+      img.onload = () => processImageSource(img, img.naturalWidth, img.naturalHeight);
+      img.onerror = () => reject(new Error(`تعذر فتح أو قراءة الصورة (${escapeHtml(file.name)})`));
+      img.src = URL.createObjectURL(file);
+    }
+  });
+}
+
+// معالجة اختيار الملفات الجديدة (من المعرض أو الكاميرا أو السحب)
+async function handleSelectFiles(files) {
+  if (!files || files.length === 0) return;
+
+  const savedCount = state.editingRequestId
+    ? state.requestAttachments.filter(a => a.request_id === state.editingRequestId).length
+    : 0;
+
+  const currentCount = savedCount + state.stagedAttachments.length;
+  const remainingSlots = MAX_ATTACHMENTS_COUNT - currentCount;
+
+  if (remainingSlots <= 0) {
+    showToast('تم الوصول للحد الأقصى (5 صور لكل طلب).', 'info');
+    return;
+  }
+
+  let filesToProcess = Array.from(files);
+  if (filesToProcess.length > remainingSlots) {
+    showToast(`تم اختيار صور أكثر من المسموح به. سيتم قبول أول ${remainingSlots} فقط.`, 'info');
+    filesToProcess = filesToProcess.slice(0, remainingSlots);
+  }
+
+  const spinner = document.getElementById('itemsLoadingSpinner');
+  if (spinner) spinner.style.display = 'flex';
+
+  try {
+    for (const f of filesToProcess) {
+      try {
+        const processed = await processAndCompressImage(f);
+        state.stagedAttachments.push(processed);
+      } catch (fileErr) {
+        showToast(fileErr.message || 'خطأ في معالجة الملف', 'error');
+      }
+    }
+    renderModalAttachments();
+  } finally {
+    if (spinner) spinner.style.display = 'none';
+  }
+}
+
+// رندرة مرفقات النافذة (المحفوظة + قيد التجهيز)
+function renderModalAttachments() {
+  const grid = document.getElementById('attachmentsPreviewGrid');
+  const countBadge = document.getElementById('attachmentsCountBadge');
+  const galleryBtn = document.getElementById('btnPickGallery');
+  const cameraBtn = document.getElementById('btnPickCamera');
+  const dropzone = document.getElementById('attachmentsDropzone');
+  if (!grid) return;
+
+  grid.innerHTML = '';
+
+  const savedAttachments = state.editingRequestId
+    ? state.requestAttachments.filter(a => a.request_id === state.editingRequestId)
+    : [];
+
+  const totalCount = savedAttachments.length + state.stagedAttachments.length;
+  if (countBadge) {
+    countBadge.textContent = `(${totalCount} من ${MAX_ATTACHMENTS_COUNT})`;
+  }
+
+  const reachedMax = totalCount >= MAX_ATTACHMENTS_COUNT;
+  if (galleryBtn) galleryBtn.disabled = reachedMax;
+  if (cameraBtn) cameraBtn.disabled = reachedMax;
+  if (dropzone) {
+    dropzone.style.opacity = reachedMax ? '0.5' : '1';
+    dropzone.style.pointerEvents = reachedMax ? 'none' : 'auto';
+  }
+
+  // 1. عرض المرفقات المحفوظة مسبقاً (عند تعديل الطلب)
+  savedAttachments.forEach((att, idx) => {
+    const card = document.createElement('div');
+    card.className = 'preview-card';
+    card.innerHTML = `
+      <img class="preview-thumb" alt="مرفق محفوظ ${idx + 1}" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E">
+      <span class="preview-badge status-saved">${formatFileSize(att.file_size)}</span>
+      <button type="button" class="preview-remove-btn btn-saved-delete" title="حذف هذه الصورة">🗑️</button>
+    `;
+
+    getAttachmentSignedUrl(att.file_path).then(url => {
+      if (url) {
+        const img = card.querySelector('.preview-thumb');
+        if (img) img.src = url;
+      }
+    });
+
+    card.querySelector('.preview-remove-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      openAttachmentDeleteModal(att);
+    });
+
+    grid.appendChild(card);
+  });
+
+  // 2. عرض الصور المجهزة للرفع
+  state.stagedAttachments.forEach((staged, idx) => {
+    const card = document.createElement('div');
+    card.className = 'preview-card';
+    let badgeText = formatFileSize(staged.fileSize);
+    let badgeClass = '';
+    if (staged.status === 'uploading') {
+      badgeText = 'جاري الرفع...';
+      badgeClass = 'status-uploading';
+    } else if (staged.status === 'failed') {
+      badgeText = 'فشل الرفع';
+      badgeClass = 'status-failed';
+    }
+
+    card.innerHTML = `
+      <img class="preview-thumb" alt="${escapeHtml(staged.originalName)}" src="${staged.previewUrl}">
+      <span class="preview-badge ${badgeClass}">${badgeText}</span>
+      ${staged.status !== 'uploading' ? `<button type="button" class="preview-remove-btn" title="إلغاء">✕</button>` : ''}
+    `;
+
+    const removeBtn = card.querySelector('.preview-remove-btn');
+    if (removeBtn) {
+      removeBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        removeStagedAttachment(idx);
+      });
+    }
+
+    grid.appendChild(card);
+  });
+}
+
+function removeStagedAttachment(index) {
+  if (index >= 0 && index < state.stagedAttachments.length) {
+    const item = state.stagedAttachments[index];
+    if (item.previewUrl) {
+      try { URL.revokeObjectURL(item.previewUrl); } catch (e) {}
+    }
+    state.stagedAttachments.splice(index, 1);
+    renderModalAttachments();
+  }
+}
+
+function formatFileSize(bytes) {
+  if (!bytes || bytes <= 0) return '0 B';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function openAttachmentDeleteModal(att) {
+  state.deletingAttachmentInfo = att;
+  const modal = document.getElementById('attachmentDeleteModal');
+  if (modal) modal.style.display = 'flex';
+}
+
+async function handleConfirmDeleteAttachment() {
+  const att = state.deletingAttachmentInfo;
+  if (!att) return;
+  const confirmBtn = document.getElementById('confirmAttachmentDeleteBtn');
+  confirmBtn.disabled = true;
+
+  try {
+    const supabase = getSupabase();
+    // حذف من قاعدة البيانات
+    const { error: dbErr } = await supabase
+      .from('request_attachments')
+      .delete()
+      .eq('id', att.id);
+    if (dbErr) throw dbErr;
+
+    // حذف الملف من التخزين
+    await supabase.storage.from('request_attachments').remove([att.file_path]);
+
+    state.requestAttachments = state.requestAttachments.filter(a => a.id !== att.id);
+    signedUrlsCache.delete(att.file_path);
+
+    showToast('تم حذف الصورة من الطلب بنجاح', 'info');
+    document.getElementById('attachmentDeleteModal').style.display = 'none';
+    state.deletingAttachmentInfo = null;
+    renderModalAttachments();
+    renderAllViews();
+  } catch (err) {
+    showToast(err.message || 'تعذر حذف الصورة', 'error');
+  } finally {
+    confirmBtn.disabled = false;
+  }
+}
+
+async function handleRetryFailedUploads() {
+  if (!state.editingRequestId) return;
+  const failedItems = state.stagedAttachments.filter(s => s.status === 'failed' || s.status === 'ready');
+  if (failedItems.length === 0) return;
+
+  const retryBtn = document.getElementById('btnRetryFailedUploads');
+  if (retryBtn) retryBtn.disabled = true;
+
+  const supabase = getSupabase();
+  let anyError = false;
+
+  for (const staged of failedItems) {
+    staged.status = 'uploading';
+    renderModalAttachments();
+
+    const randomName = `${crypto.randomUUID()}.${staged.extension}`;
+    const filePath = `store_${state.activeStoreId}/req_${state.editingRequestId}/${randomName}`;
+
+    try {
+      // 1. رفع الملف إلى Storage
+      const { error: upErr } = await supabase.storage
+        .from('request_attachments')
+        .upload(filePath, staged.blob, {
+          contentType: staged.fileType,
+          upsert: false
+        });
+      if (upErr) throw upErr;
+
+      // 2. إدراج سجل المرفق
+      const { data: dbAtt, error: dbErr } = await supabase
+        .from('request_attachments')
+        .insert({
+          request_id: state.editingRequestId,
+          store_id: state.activeStoreId,
+          file_path: filePath,
+          file_type: staged.fileType,
+          file_size: staged.fileSize,
+          created_by: state.user.id
+        })
+        .select()
+        .single();
+
+      if (dbErr) {
+        await supabase.storage.from('request_attachments').remove([filePath]);
+        throw dbErr;
+      }
+
+      staged.status = 'saved';
+      staged.savedAttachment = dbAtt;
+      if (!state.requestAttachments.some(a => a.id === dbAtt.id)) {
+        state.requestAttachments.push(dbAtt);
+      }
+    } catch (err) {
+      console.error('Retry upload failed for file:', err);
+      staged.status = 'failed';
+      staged.error = err.message;
+      anyError = true;
+    }
+  }
+
+  // تنظيف الصور الناجحة
+  const remainingFailed = state.stagedAttachments.filter(s => s.status === 'failed');
+  state.stagedAttachments = remainingFailed;
+
+  if (anyError) {
+    const notice = document.getElementById('attachmentsRetryNotice');
+    if (notice) notice.style.display = 'flex';
+    showToast('تعذر رفع بعض الصور، يرجى المحاولة مرة أخرى', 'error');
+  } else {
+    const notice = document.getElementById('attachmentsRetryNotice');
+    if (notice) notice.style.display = 'none';
+    hideRequestModal();
+    showToast('تم رفع جميع الصور بنجاح', 'success');
+  }
+
+  if (retryBtn) retryBtn.disabled = false;
+  renderModalAttachments();
+  renderAllViews();
+}
+
+// عارض الصور عالي الدقة (Lightbox Viewer)
+window.openImageViewer = function(requestId, initialIndex = 0) {
+  const attachments = state.requestAttachments.filter(a => a.request_id === requestId);
+  if (!attachments || attachments.length === 0) return;
+
+  const validIndex = Math.max(0, Math.min(initialIndex, attachments.length - 1));
+  state.activeViewer = {
+    requestId,
+    attachments,
+    currentIndex: validIndex
+  };
+
+  const modal = document.getElementById('imageViewerModal');
+  if (modal) {
+    modal.style.display = 'flex';
+    renderActiveViewerImage();
+  }
+};
+
+window.navigateImageViewer = function(delta) {
+  if (!state.activeViewer || !state.activeViewer.attachments) return;
+  const newIndex = state.activeViewer.currentIndex + delta;
+  if (newIndex >= 0 && newIndex < state.activeViewer.attachments.length) {
+    state.activeViewer.currentIndex = newIndex;
+    renderActiveViewerImage();
+  }
+};
+
+window.closeImageViewer = function() {
+  const modal = document.getElementById('imageViewerModal');
+  if (modal) modal.style.display = 'none';
+  state.activeViewer = null;
+};
+
+async function renderActiveViewerImage() {
+  if (!state.activeViewer || !state.activeViewer.attachments) return;
+  const { attachments, currentIndex } = state.activeViewer;
+  const att = attachments[currentIndex];
+  if (!att) return;
+
+  const counterEl = document.getElementById('viewerCounter');
+  const imgEl = document.getElementById('viewerImage');
+  const spinnerEl = document.getElementById('viewerSpinner');
+  const prevBtn = document.getElementById('viewerPrevBtn');
+  const nextBtn = document.getElementById('viewerNextBtn');
+  const downloadBtn = document.getElementById('viewerDownloadBtn');
+
+  if (counterEl) {
+    counterEl.textContent = `صورة ${currentIndex + 1} من ${attachments.length}`;
+  }
+
+  // في العربية RTL: زر السابق (يمين) ينقص الاندكس، وزر التالي (يسار) يزيد الاندكس
+  if (prevBtn) prevBtn.disabled = currentIndex === 0;
+  if (nextBtn) nextBtn.disabled = currentIndex === attachments.length - 1;
+
+  if (spinnerEl) spinnerEl.style.display = 'block';
+  if (imgEl) {
+    imgEl.style.opacity = '0.3';
+  }
+
+  let signedUrl = await getAttachmentSignedUrl(att.file_path);
+
+  if (!signedUrl) {
+    signedUrl = await getAttachmentSignedUrl(att.file_path, true);
+  }
+
+  if (imgEl && signedUrl) {
+    imgEl.src = signedUrl;
+    imgEl.onload = () => {
+      if (spinnerEl) spinnerEl.style.display = 'none';
+      imgEl.style.opacity = '1';
+    };
+    imgEl.onerror = async () => {
+      console.warn('Image load error, refreshing signed url...');
+      const freshUrl = await getAttachmentSignedUrl(att.file_path, true);
+      if (freshUrl && freshUrl !== signedUrl) {
+        imgEl.src = freshUrl;
+      } else {
+        if (spinnerEl) spinnerEl.style.display = 'none';
+        imgEl.style.opacity = '1';
+        showToast('تعذر تحميل الصورة أو انتهت صلاحية الرابط', 'error');
+      }
+    };
+  }
+
+  if (downloadBtn && signedUrl) {
+    downloadBtn.href = signedUrl;
+  }
+}
+
+// ========================================================
 // 9. إضافة وتعديل وحذف الطلبات (Requests CRUD with RLS)
 // ========================================================
 async function handleSaveRequest(formData) {
@@ -1065,6 +1620,8 @@ async function handleSaveRequest(formData) {
   saveBtn.disabled = true;
 
   try {
+    let savedRequestId = formData.id;
+
     if (formData.id) {
       // تعديل طلب موجود (تتحقق منه RLS: مالك أو مدير أو كاتب الطلب أو المسؤول)
       if (formData.category === 'announcement') {
@@ -1096,11 +1653,10 @@ async function handleSaveRequest(formData) {
           .eq('id', formData.id);
         if (error) throw error;
       }
-      showToast('تم تحديث الطلب بنجاح', 'success');
     } else {
       // إضافة طلب جديد (مرتبط بالـ store_id النشط ومُسجل باسم المستخدم والشفت الحالي تلقائياً)
       if (formData.category === 'announcement') {
-        const { error } = await supabase
+        const { data: newAnn, error } = await supabase
           .from('announcements')
           .insert({
             store_id: state.activeStoreId,
@@ -1111,10 +1667,13 @@ async function handleSaveRequest(formData) {
             author_id: state.user.id,
             author_name: state.user.full_name,
             shift: state.currentShift
-          });
+          })
+          .select('id')
+          .single();
         if (error) throw error;
+        savedRequestId = newAnn?.id;
       } else {
-        const { error } = await supabase
+        const { data: newReq, error } = await supabase
           .from('requests')
           .insert({
             store_id: state.activeStoreId,
@@ -1130,13 +1689,94 @@ async function handleSaveRequest(formData) {
             author_name: state.user.full_name,
             shift: state.currentShift,
             status: 'new'
-          });
+          })
+          .select('id')
+          .single();
         if (error) throw error;
+        savedRequestId = newReq?.id;
       }
-      showToast('تمت إضافة ونشر الطلب في المحل بنجاح', 'success');
     }
 
-    hideRequestModal();
+    // رفع المرفقات المجهزة إذا كان الطلب من الحجوزات أو النواقص
+    let hasUploadFailure = false;
+    if (formData.category !== 'announcement' && savedRequestId && state.stagedAttachments.length > 0) {
+      // تعيين هوية الطلب لتفادي التكرار عند أي إعادة محاولة
+      state.editingRequestId = savedRequestId;
+      document.getElementById('editRequestId').value = savedRequestId;
+
+      for (const staged of state.stagedAttachments) {
+        if (staged.status === 'saved') continue;
+
+        staged.status = 'uploading';
+        renderModalAttachments();
+
+        const randomName = `${crypto.randomUUID()}.${staged.extension}`;
+        const filePath = `store_${state.activeStoreId}/req_${savedRequestId}/${randomName}`;
+
+        try {
+          // 1. رفع الملف إلى Storage
+          const { error: upErr } = await supabase.storage
+            .from('request_attachments')
+            .upload(filePath, staged.blob, {
+              contentType: staged.fileType,
+              upsert: false
+            });
+          if (upErr) throw upErr;
+
+          // 2. حفظ سجل المرفق في قاعدة البيانات
+          const { data: dbAtt, error: dbErr } = await supabase
+            .from('request_attachments')
+            .insert({
+              request_id: savedRequestId,
+              store_id: state.activeStoreId,
+              file_path: filePath,
+              file_type: staged.fileType,
+              file_size: staged.fileSize,
+              created_by: state.user.id
+            })
+            .select()
+            .single();
+
+          if (dbErr) {
+            // تنظيف الملف اليتيم فوراً من التخزين
+            await supabase.storage.from('request_attachments').remove([filePath]);
+            throw dbErr;
+          }
+
+          staged.status = 'saved';
+          staged.savedAttachment = dbAtt;
+          if (!state.requestAttachments.some(a => a.id === dbAtt.id)) {
+            state.requestAttachments.push(dbAtt);
+          }
+        } catch (attErr) {
+          console.error('Attachment upload error:', attErr);
+          staged.status = 'failed';
+          staged.error = attErr.message;
+          hasUploadFailure = true;
+        }
+      }
+
+      // تنظيف الصور التي تم حفظها بنجاح
+      state.stagedAttachments = state.stagedAttachments.filter(s => s.status === 'failed');
+    }
+
+    if (hasUploadFailure) {
+      const notice = document.getElementById('attachmentsRetryNotice');
+      if (notice) notice.style.display = 'flex';
+      renderModalAttachments();
+      showToast('تم حفظ الطلب، ولكن تعذر رفع بعض الصور. يمكنك إعادة المحاولة الآن.', 'error');
+    } else {
+      // إزالة الصور المتبقية وتنظيف الروابط
+      state.stagedAttachments.forEach(s => {
+        if (s.previewUrl) {
+          try { URL.revokeObjectURL(s.previewUrl); } catch (e) {}
+        }
+      });
+      state.stagedAttachments = [];
+      hideRequestModal();
+      showToast(formData.id ? 'تم تحديث الطلب بنجاح' : 'تمت إضافة ونشر الطلب في المحل بنجاح', 'success');
+      renderAllViews();
+    }
   } catch (err) {
     showToast(err.message || 'تعذر حفظ الطلب', 'error');
   } finally {
@@ -1144,7 +1784,7 @@ async function handleSaveRequest(formData) {
   }
 }
 
-// حذف طلب
+// حذف طلب نهائياً مع تنظيف كافة مرفقاته من Supabase Storage
 async function handleDeleteRequest(id, isAnnouncement = false) {
   const supabase = getSupabase();
   if (!supabase) return;
@@ -1154,6 +1794,23 @@ async function handleDeleteRequest(id, isAnnouncement = false) {
 
   try {
     const table = isAnnouncement ? 'announcements' : 'requests';
+
+    // إذا كان طلباً، ننظف ملفات المرفقات من التخزين أولاً
+    if (!isAnnouncement) {
+      const toRemovePaths = state.requestAttachments
+        .filter(a => a.request_id === id)
+        .map(a => a.file_path);
+
+      if (toRemovePaths.length > 0) {
+        try {
+          await supabase.storage.from('request_attachments').remove(toRemovePaths);
+          toRemovePaths.forEach(p => signedUrlsCache.delete(p));
+        } catch (storageErr) {
+          console.warn('Storage attachments cleanup warning:', storageErr);
+        }
+      }
+    }
+
     const { error } = await supabase
       .from(table)
       .delete()
@@ -1161,9 +1818,14 @@ async function handleDeleteRequest(id, isAnnouncement = false) {
 
     if (error) throw error;
 
+    if (!isAnnouncement) {
+      state.requestAttachments = state.requestAttachments.filter(a => a.request_id !== id);
+    }
+
     showToast('تم حذف الطلب بنجاح', 'info');
     document.getElementById('deleteConfirmModal').style.display = 'none';
     state.deletingRequestId = null;
+    renderAllViews();
   } catch (err) {
     showToast(err.message || 'تعذر حذف الطلب. قد لا تملك الصلاحية الكافية.', 'error');
   } finally {
@@ -1592,6 +2254,35 @@ function createItemCardElement(item) {
     `;
   }
 
+  // مرفقات الطلب
+  const itemAttachments = isAnnouncement ? [] : state.requestAttachments.filter(a => a.request_id === item.id);
+  const attCount = itemAttachments.length;
+  let attachmentsBadgeHtml = '';
+  if (attCount > 0) {
+    const photoWord = attCount === 1 ? 'صورة' : attCount === 2 ? 'صورتان' : attCount <= 10 ? 'صور' : 'صورة';
+    attachmentsBadgeHtml = `<span class="badge badge-normal meta-chip-attachments" title="${attCount} صور مرفقة">📷 ${attCount} ${photoWord}</span>`;
+  }
+
+  // قسم المصغرات في التفاصيل
+  let attachmentsSectionHtml = '';
+  if (attCount > 0) {
+    attachmentsSectionHtml = `
+      <div class="card-attachments-section">
+        <div class="card-attachments-title">
+          <span>📷 الصور والمرفقات (${attCount}):</span>
+        </div>
+        <div class="card-thumbnails-list">
+          ${itemAttachments.map((att, idx) => `
+            <div class="card-thumb-item" onclick="event.stopPropagation(); openImageViewer('${item.id}', ${idx})" title="اضغط للمعاينة">
+              <img class="card-thumb-img" data-path="${escapeHtml(att.file_path)}" alt="مرفق ${idx + 1}" loading="lazy" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E">
+              <div class="card-thumb-overlay">🔍</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
   card.innerHTML = `
     <!-- 1. شريط الملخص المختصر (ظاهر دائماً: العنوان، الحالة، الأولوية، المسؤول، زر الإجراء) -->
     <div class="card-compact-summary">
@@ -1599,6 +2290,7 @@ function createItemCardElement(item) {
         <span class="badge ${badgeClass}">${categoryIcon} ${categoryLabel}</span>
         ${statusBadgeHtml}
         ${priorityBadgeHtml}
+        ${attachmentsBadgeHtml}
       </div>
 
       <div class="card-title-row">
@@ -1622,6 +2314,7 @@ function createItemCardElement(item) {
     <!-- 2. التفاصيل الإضافية (تظهر عند فتح البطاقة) -->
     <div class="card-expanded-details" style="display: none;">
       ${item.details ? `<div class="card-details-box"><p class="card-details">${escapeHtml(item.details)}</p></div>` : ''}
+      ${attachmentsSectionHtml}
       ${metaChipsHtml ? `<div class="card-meta-chips">${metaChipsHtml}</div>` : ''}
       ${announcementReadersHtml}
 
@@ -1660,6 +2353,16 @@ function createItemCardElement(item) {
       card.classList.add('is-open');
       if (arrowEl) arrowEl.textContent = '▴';
       if (textEl) textEl.textContent = 'إخفاء';
+
+      // تحميل كسول لروابط المصغرات الموقعة عند فتح التفاصيل
+      detailsPanel.querySelectorAll('.card-thumb-img[data-path]').forEach(img => {
+        const path = img.getAttribute('data-path');
+        if (path && (!img.src || img.src.startsWith('data:'))) {
+          getAttachmentSignedUrl(path).then(url => {
+            if (url) img.src = url;
+          });
+        }
+      });
     }
   };
 
@@ -1916,6 +2619,18 @@ function openAddModal() {
   }
 
   state.editingRequestId = null;
+
+  // تنظيف أي صور سابقة قيد التجهيز
+  state.stagedAttachments.forEach(s => {
+    if (s.previewUrl) {
+      try { URL.revokeObjectURL(s.previewUrl); } catch (e) {}
+    }
+  });
+  state.stagedAttachments = [];
+
+  const retryNotice = document.getElementById('attachmentsRetryNotice');
+  if (retryNotice) retryNotice.style.display = 'none';
+
   const form = document.getElementById('requestForm');
   form.reset();
   document.getElementById('editRequestId').value = '';
@@ -1935,11 +2650,24 @@ function openAddModal() {
   document.getElementById('modalShiftPreview').textContent = state.currentShift;
   document.getElementById('modalStorePreview').textContent = state.activeStore?.name || '';
 
+  renderModalAttachments();
   document.getElementById('requestModal').style.display = 'flex';
 }
 
 window.openEditModal = function(id, isAnnouncement = false) {
   state.editingRequestId = id;
+
+  // تنظيف أي صور سابقة قيد التجهيز
+  state.stagedAttachments.forEach(s => {
+    if (s.previewUrl) {
+      try { URL.revokeObjectURL(s.previewUrl); } catch (e) {}
+    }
+  });
+  state.stagedAttachments = [];
+
+  const retryNotice = document.getElementById('attachmentsRetryNotice');
+  if (retryNotice) retryNotice.style.display = 'none';
+
   const modal = document.getElementById('requestModal');
   const form = document.getElementById('requestForm');
 
@@ -1976,28 +2704,44 @@ window.openEditModal = function(id, isAnnouncement = false) {
   document.getElementById('modalShiftPreview').textContent = item.shift;
   document.getElementById('modalStorePreview').textContent = state.activeStore?.name || '';
 
+  renderModalAttachments();
   modal.style.display = 'flex';
 };
 
 function updateModalCategoryFields(cat) {
   const shortage = document.getElementById('shortageFields');
   const reservation = document.getElementById('reservationFields');
+  const attachmentsSection = document.getElementById('attachmentsFormSection');
 
   if (cat === 'reservation') {
-    reservation.style.display = 'flex';
-    shortage.style.display = 'none';
+    if (reservation) reservation.style.display = 'flex';
+    if (shortage) shortage.style.display = 'none';
+    if (attachmentsSection) attachmentsSection.style.display = 'block';
   } else if (cat === 'shortage') {
-    reservation.style.display = 'none';
-    shortage.style.display = 'flex';
+    if (reservation) reservation.style.display = 'none';
+    if (shortage) shortage.style.display = 'flex';
+    if (attachmentsSection) attachmentsSection.style.display = 'block';
   } else {
-    reservation.style.display = 'none';
-    shortage.style.display = 'none';
+    if (reservation) reservation.style.display = 'none';
+    if (shortage) shortage.style.display = 'none';
+    if (attachmentsSection) attachmentsSection.style.display = 'none';
   }
 }
 
 function hideRequestModal() {
   document.getElementById('requestModal').style.display = 'none';
   state.editingRequestId = null;
+
+  // تنظيف الروابط المؤقتة
+  state.stagedAttachments.forEach(s => {
+    if (s.previewUrl) {
+      try { URL.revokeObjectURL(s.previewUrl); } catch (e) {}
+    }
+  });
+  state.stagedAttachments = [];
+
+  const retryNotice = document.getElementById('attachmentsRetryNotice');
+  if (retryNotice) retryNotice.style.display = 'none';
 }
 
 // 11.6 Delete Modal
@@ -2375,6 +3119,128 @@ function setupEventListeners() {
     const newPassword = document.getElementById('profileNewPasswordInput').value;
     await handleUpdateProfile(fullName, newPassword);
   });
+
+  // أحداث مرفقات الصور وعارض الصور
+  const galleryInput = document.getElementById('reqGalleryInput');
+  const cameraInput = document.getElementById('reqCameraInput');
+  const pickGalleryBtn = document.getElementById('btnPickGallery');
+  const pickCameraBtn = document.getElementById('btnPickCamera');
+  const dropzone = document.getElementById('attachmentsDropzone');
+
+  pickGalleryBtn?.addEventListener('click', () => {
+    galleryInput?.click();
+  });
+
+  pickCameraBtn?.addEventListener('click', () => {
+    cameraInput?.click();
+  });
+
+  galleryInput?.addEventListener('change', e => {
+    handleSelectFiles(e.target.files);
+    e.target.value = '';
+  });
+
+  cameraInput?.addEventListener('change', e => {
+    handleSelectFiles(e.target.files);
+    e.target.value = '';
+  });
+
+  // السحب والإفلات للصور
+  if (dropzone) {
+    dropzone.addEventListener('click', () => galleryInput?.click());
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropzone.addEventListener(eventName, e => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add('drag-active');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropzone.addEventListener(eventName, e => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove('drag-active');
+      });
+    });
+
+    dropzone.addEventListener('drop', e => {
+      const dt = e.dataTransfer;
+      if (dt && dt.files && dt.files.length > 0) {
+        handleSelectFiles(dt.files);
+      }
+    });
+  }
+
+  // زر إعادة محاولة الرفع عند الفشل
+  document.getElementById('btnRetryFailedUploads')?.addEventListener('click', handleRetryFailedUploads);
+
+  // تأكيد وإلغاء حذف المرفق
+  document.getElementById('confirmAttachmentDeleteBtn')?.addEventListener('click', handleConfirmDeleteAttachment);
+  document.getElementById('cancelAttachmentDeleteBtn')?.addEventListener('click', () => {
+    const modal = document.getElementById('attachmentDeleteModal');
+    if (modal) modal.style.display = 'none';
+    state.deletingAttachmentInfo = null;
+  });
+
+  // أزرار عارض الصور (Lightbox)
+  document.getElementById('viewerCloseBtn')?.addEventListener('click', closeImageViewer);
+  document.getElementById('viewerPrevBtn')?.addEventListener('click', () => navigateImageViewer(-1));
+  document.getElementById('viewerNextBtn')?.addEventListener('click', () => navigateImageViewer(1));
+
+  // إغلاق العارض عند النقر على الخلفية
+  document.getElementById('imageViewerModal')?.addEventListener('click', e => {
+    if (e.target.id === 'imageViewerModal' || e.target.classList.contains('image-viewer-backdrop')) {
+      closeImageViewer();
+    }
+  });
+
+  // دعم لوحة المفاتيح للتنقل والإغلاق
+  window.addEventListener('keydown', e => {
+    if (!state.activeViewer) return;
+    if (e.key === 'Escape') {
+      closeImageViewer();
+    } else if (e.key === 'ArrowRight') {
+      // في RTL: السهم الأيمن يرجع للصورة السابقة
+      navigateImageViewer(-1);
+    } else if (e.key === 'ArrowLeft') {
+      // في RTL: السهم الأيسر يتقدم للصورة التالية
+      navigateImageViewer(1);
+    }
+  });
+
+  // دعم إيماءات اللمس السريعة (Touch Swipe) على الموبايل
+  const viewerModal = document.getElementById('imageViewerModal');
+  if (viewerModal) {
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    viewerModal.addEventListener('touchstart', e => {
+      if (!state.activeViewer || e.touches.length !== 1) return;
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    viewerModal.addEventListener('touchend', e => {
+      if (!state.activeViewer || e.changedTouches.length !== 1) return;
+      const touchEndX = e.changedTouches[0].clientX;
+      const touchEndY = e.changedTouches[0].clientY;
+      const deltaX = touchEndX - touchStartX;
+      const deltaY = touchEndY - touchStartY;
+
+      // سحب أفقي واضح أكبر من السحب الرأسي
+      if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY)) {
+        if (deltaX < 0) {
+          // سحب لليسار: التالي
+          navigateImageViewer(1);
+        } else {
+          // سحب لليمين: السابق
+          navigateImageViewer(-1);
+        }
+      }
+    }, { passive: true });
+  }
 
   // إغلاق القائمة الجانبية تلقائياً عند فتح شاشات الدخول أو تبديل الشفت
   morningBtn.addEventListener('click', () => closeDrawer());

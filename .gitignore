@@ -10,3 +10,7 @@ Desktop.ini
 
 # Logs
 *.log
+
+# Deployment artifacts
+deploy/
+deploy.zip

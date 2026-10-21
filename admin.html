@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة التحكم | بين الشفتات</title>
+  <meta name="description" content="لوحة تحكم إدارية لتطبيق بين الشفتات - إدارة المحلات والمستخدمين والإحصائيات">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32x32.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg-base:    #0b0f1a;
+      --bg-surface: #111827;
+      --bg-card:    #1a2235;
+      --bg-card-2:  #1e2a3a;
+      --bg-hover:   #243044;
+      --border:     rgba(255,255,255,0.06);
+      --border-sm:  rgba(255,255,255,0.04);
+      --primary:    #06b6d4;
+      --primary-d:  #0891b2;
+      --primary-bg: rgba(6,182,212,0.10);
+      --green:   #10b981;
+      --green-bg: rgba(16,185,129,0.10);
+      --red:     #ef4444;
+      --red-bg:  rgba(239,68,68,0.10);
+      --amber:   #f59e0b;
+      --amber-bg: rgba(245,158,11,0.10);
+      --purple:  #8b5cf6;
+      --purple-bg: rgba(139,92,246,0.10);
+      --text-1:   #f8fafc;
+      --text-2:   #cbd5e1;
+      --text-3:   #64748b;
+      --text-4:   #334155;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 20px;
+      --sidebar-w: 260px;
+      --header-h:  64px;
+      --font: 'Tajawal', -apple-system, BlinkMacSystemFont, sans-serif;
+      --ease: cubic-bezier(0.4,0,0.2,1);
+      --trans: 0.2s var(--ease);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { height: 100%; overflow: hidden; }
+    body {
+      font-family: var(--font);
+      background: var(--bg-base);
+      color: var(--text-2);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      direction: rtl;
+      text-align: right;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { text-decoration: none; color: inherit; }
+    button { font-family: var(--font); cursor: pointer; border: none; background: none; }
+    input, select, textarea { font-family: var(--font); }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 99px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
+
+    /* SIDEBAR */
+    .sidebar {
+      width: var(--sidebar-w); min-width: var(--sidebar-w);
+      height: 100vh; background: var(--bg-surface);
+      border-left: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow: hidden;
+      position: relative; z-index: 10;
+    }
+    .sidebar-logo {
+      height: var(--header-h); display: flex; align-items: center;
+      gap: 10px; padding: 0 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .logo-glyph {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--primary), #3b82f6);
+      border-radius: var(--radius-sm); display: flex; align-items: center;
+      justify-content: center; font-size: 16px;
+      box-shadow: 0 4px 12px rgba(6,182,212,0.3); flex-shrink: 0;
+    }
+    .logo-text { display: flex; flex-direction: column; line-height: 1.2; }
+    .logo-text span:first-child { font-size: 0.95rem; font-weight: 800; color: var(--text-1); }
+    .logo-text span:last-child  { font-size: 0.7rem; color: var(--text-3); font-weight: 400; }
+    .nav-section { padding: 12px 12px 4px; flex-shrink: 0; }
+    .nav-section-label {
+      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em;
+      color: var(--text-4); text-transform: uppercase; padding: 0 8px; margin-bottom: 4px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+      border-radius: var(--radius-sm); font-size: 0.88rem; font-weight: 500;
+      color: var(--text-3); transition: var(--trans); cursor: pointer;
+      position: relative; margin-bottom: 1px;
+    }
+    .nav-item:hover { background: var(--bg-hover); color: var(--text-2); }
+    .nav-item.active { background: var(--primary-bg); color: var(--primary); font-weight: 700; }
+    .nav-item.active::before {
+      content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+      width: 3px; height: 60%; background: var(--primary); border-radius: 0 3px 3px 0;
+    }
+    .nav-icon { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 1rem; }
+    .nav-badge {
+      margin-right: auto; background: var(--primary); color: #fff;
+      font-size: 0.65rem; font-weight: 800; padding: 1px 7px;
+      border-radius: 99px; min-width: 20px; text-align: center;
+    }
+    .nav-badge.red { background: var(--red); }
+    .nav-badge.amber { background: var(--amber); }
+    .sidebar-footer { margin-top: auto; padding: 12px; border-top: 1px solid var(--border); flex-shrink: 0; }
+    .sidebar-user {
+      display: flex; align-items: center; gap: 10px; padding: 10px;
+      border-radius: var(--radius-md); background: var(--bg-card); cursor: pointer; transition: var(--trans);
+    }
+    .sidebar-user:hover { background: var(--bg-hover); }
+    .user-avatar {
+      width: 34px; height: 34px; border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, var(--primary), var(--purple));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem; font-weight: 800; color: #fff; flex-shrink: 0;
+    }
+    .user-info { flex: 1; overflow: hidden; }
+    .user-info strong { display: block; font-size: 0.82rem; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-info span { font-size: 0.7rem; color: var(--text-3); }
+
+    /* MAIN */
+    .admin-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+    .admin-header {
+      height: var(--header-h); display: flex; align-items: center;
+      padding: 0 24px; border-bottom: 1px solid var(--border);
+      background: var(--bg-surface); gap: 12px; flex-shrink: 0;
+    }
+    .page-title-area { flex: 1; display: flex; flex-direction: column; }
+    .page-title-area h1 { font-size: 1.05rem; font-weight: 800; color: var(--text-1); }
+    .page-title-area p { font-size: 0.72rem; color: var(--text-3); margin-top: 1px; }
+    .header-actions { display: flex; align-items: center; gap: 8px; }
+    .header-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 7px 14px; border-radius: var(--radius-sm);
+      font-size: 0.82rem; font-weight: 600; transition: var(--trans);
+    }
+    .header-btn.primary {
+      background: linear-gradient(135deg, var(--primary), #3b82f6);
+      color: #fff; box-shadow: 0 2px 8px rgba(6,182,212,0.3);
+    }
+    .header-btn.primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .header-btn.ghost { background: var(--bg-card); color: var(--text-2); border: 1px solid var(--border); }
+    .header-btn.ghost:hover { background: var(--bg-hover); color: var(--text-1); }
+    .realtime-dot {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.72rem; color: var(--green); background: var(--green-bg);
+      border-radius: 99px; padding: 5px 10px;
+    }
+    .realtime-dot::before {
+      content: ''; width: 7px; height: 7px; background: var(--green);
+      border-radius: 50%; animation: pulse-dot 2s infinite;
+    }
+    @keyframes pulse-dot {
+      0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(16,185,129,0.4);}
+      50%{opacity:.7;box-shadow:0 0 0 5px rgba(16,185,129,0);}
+    }
+
+    /* CONTENT */
+    .admin-content { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 24px; }
+    .view { display: none; flex-direction: column; gap: 20px; }
+    .view.active { display: flex; }
+
+    /* KPI */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 16px; }
+    .kpi-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 20px;
+      display: flex; flex-direction: column; gap: 12px;
+      position: relative; overflow: hidden; transition: var(--trans);
+    }
+    .kpi-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0;
+      height: 2px; background: var(--kpi-color, var(--primary));
+    }
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+    .kpi-top { display: flex; align-items: center; justify-content: space-between; }
+    .kpi-icon {
+      width: 40px; height: 40px; border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
+      background: var(--kpi-bg, var(--primary-bg));
+    }
+    .kpi-change { font-size: 0.7rem; font-weight: 700; padding: 3px 8px; border-radius: 99px; }
+    .kpi-change.up   { color: var(--green); background: var(--green-bg); }
+    .kpi-change.down { color: var(--red);   background: var(--red-bg); }
+    .kpi-change.neutral { color: var(--text-3); background: rgba(255,255,255,0.05); }
+    .kpi-value { font-size: 2rem; font-weight: 900; color: var(--text-1); line-height: 1; }
+    .kpi-label { font-size: 0.78rem; color: var(--text-3); font-weight: 500; }
+
+    /* SECTION */
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .section-title { font-size: 0.95rem; font-weight: 800; color: var(--text-1); display: flex; align-items: center; gap: 8px; }
+    .section-title .pill { font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: var(--primary-bg); color: var(--primary); }
+    .section-link { font-size: 0.78rem; color: var(--primary); cursor: pointer; transition: var(--trans); }
+    .section-link:hover { color: #fff; }
+
+    /* LAYOUT */
+    .two-col       { display: grid; grid-template-columns: 1fr 1fr;  gap: 16px; }
+    .two-col-wide  { display: grid; grid-template-columns: 2fr 1fr;  gap: 16px; }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; }
+
+    /* ACTIVITY */
+    .activity-list { display: flex; flex-direction: column; gap: 0; }
+    .activity-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-sm); }
+    .activity-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .activity-avatar {
+      width: 32px; height: 32px; border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.8rem; font-weight: 800; color: #fff; flex-shrink: 0;
+      background: linear-gradient(135deg, var(--primary), var(--purple));
+    }
+    .activity-body { flex: 1; min-width: 0; }
+    .activity-text { font-size: 0.82rem; color: var(--text-2); line-height: 1.5; }
+    .activity-text strong { color: var(--text-1); font-weight: 700; }
+    .activity-time { font-size: 0.7rem; color: var(--text-3); margin-top: 2px; }
+    .activity-badge {
+      font-size: 0.65rem; font-weight: 700; padding: 2px 7px;
+      border-radius: 99px; white-space: nowrap; flex-shrink: 0; align-self: center;
+    }
+
+    /* TABLE */
+    .data-table-wrap { overflow-x: auto; border-radius: var(--radius-md); }
+    table.data-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+    .data-table thead th {
+      padding: 10px 14px; text-align: right; font-size: 0.7rem; font-weight: 700;
+      color: var(--text-3); letter-spacing: 0.04em; text-transform: uppercase;
+      border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    .data-table tbody td {
+      padding: 12px 14px; border-bottom: 1px solid var(--border-sm);
+      color: var(--text-2); vertical-align: middle;
+    }
+    .data-table tbody tr:last-child td { border-bottom: none; }
+    .data-table tbody tr { transition: var(--trans); }
+    .data-table tbody tr:hover { background: var(--bg-hover); }
+    .data-table tbody tr:hover td { color: var(--text-1); }
+    .td-name { font-weight: 700; color: var(--text-1) !important; }
+    .td-role {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 0.72rem; font-weight: 700; padding: 3px 9px; border-radius: 99px;
+    }
+    .role-owner   { background: rgba(245,158,11,0.15); color: var(--amber); }
+    .role-manager { background: var(--purple-bg); color: var(--purple); }
+    .role-staff   { background: var(--primary-bg); color: var(--primary); }
+    .status-dot { display: inline-flex; align-items: center; gap: 5px; font-size: 0.75rem; font-weight: 600; }
+    .status-dot::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
+    .status-dot.active::before   { background: var(--green); box-shadow: 0 0 6px rgba(16,185,129,0.5); }
+    .status-dot.inactive::before { background: var(--text-4); }
+    .action-btn {
+      padding: 5px 10px; border-radius: var(--radius-sm); font-size: 0.72rem; font-weight: 600;
+      transition: var(--trans); cursor: pointer; border: 1px solid var(--border); color: var(--text-3); background: transparent;
+    }
+    .action-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .action-btn.danger:hover { border-color: var(--red); color: var(--red); }
+
+    /* PROGRESS */
+    .progress-list { display: flex; flex-direction: column; gap: 14px; }
+    .progress-item { display: flex; flex-direction: column; gap: 6px; }
+    .progress-header { display: flex; justify-content: space-between; align-items: center; }
+    .progress-label { font-size: 0.8rem; color: var(--text-2); font-weight: 600; }
+    .progress-value { font-size: 0.78rem; color: var(--text-3); }
+    .progress-bar-bg { height: 6px; background: rgba(255,255,255,0.05); border-radius: 99px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; border-radius: 99px; transition: width 1s var(--ease); }
+
+    /* CHART */
+    .mini-chart { display: flex; align-items: flex-end; gap: 5px; height: 80px; padding: 8px 0 0; }
+    .chart-bar {
+      flex: 1; border-radius: 4px 4px 0 0; background: var(--primary-bg);
+      border: 1px solid rgba(6,182,212,0.2); transition: var(--trans);
+      position: relative; cursor: pointer;
+    }
+    .chart-bar.active,.chart-bar:hover {
+      background: linear-gradient(to top, var(--primary), rgba(6,182,212,0.6));
+      border-color: var(--primary);
+    }
+    .chart-bar::after {
+      content: attr(data-val); position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
+      font-size: 0.6rem; color: var(--text-3); white-space: nowrap; opacity: 0; transition: var(--trans);
+    }
+    .chart-bar:hover::after { opacity: 1; color: var(--text-1); }
+    .chart-labels { display: flex; gap: 5px; margin-top: 6px; }
+    .chart-label { flex: 1; text-align: center; font-size: 0.6rem; color: var(--text-4); }
+
+    /* METRICS */
+    .metric-row { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--border-sm); }
+    .metric-row:last-child { border-bottom: none; }
+    .metric-icon { font-size: 1.4rem; width: 36px; text-align: center; flex-shrink: 0; }
+    .metric-body { flex: 1; }
+    .metric-name { font-size: 0.8rem; color: var(--text-2); font-weight: 600; }
+    .metric-val  { font-size: 1.1rem; font-weight: 900; color: var(--text-1); }
+    .metric-sub  { font-size: 0.68rem; color: var(--text-3); }
+
+    /* SEARCH */
+    .users-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+    .search-input-wrap { position: relative; flex: 1; }
+    .search-input-wrap input {
+      width: 100%; background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 8px 36px 8px 12px;
+      font-size: 0.83rem; color: var(--text-1); outline: none; transition: var(--trans);
+    }
+    .search-input-wrap input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(6,182,212,0.12); }
+    .search-input-wrap input::placeholder { color: var(--text-3); }
+    .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-3); font-size: 0.9rem; pointer-events: none; }
+
+    /* TOAST */
+    .toast-area { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 9999; pointer-events: none; }
+    .toast {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md);
+      padding: 10px 18px; font-size: 0.83rem; color: var(--text-1);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4); animation: toast-in 0.3s var(--ease); white-space: nowrap;
+    }
+    .toast.success { border-color: rgba(16,185,129,0.3); }
+    .toast.error   { border-color: rgba(239,68,68,0.3); }
+    .toast.info    { border-color: rgba(6,182,212,0.3); }
+    @keyframes toast-in { from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);} }
+
+    /* SKELETON */
+    .skeleton { background: linear-gradient(90deg,var(--bg-card) 25%,var(--bg-hover) 50%,var(--bg-card) 75%); background-size:400% 100%; animation:skeleton-wave 1.5s infinite; border-radius:var(--radius-sm); }
+    @keyframes skeleton-wave { 0%{background-position:100% 50%;}100%{background-position:0% 50%;} }
+
+    /* EMPTY */
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--text-3); }
+    .empty-state .empty-icon { font-size: 2.5rem; margin-bottom: 10px; opacity: 0.5; }
+    .empty-state p { font-size: 0.83rem; }
+
+    /* LOGIN */
+    #loginScreen {
+      position: fixed; inset: 0; background: var(--bg-base);
+      display: flex; align-items: center; justify-content: center; z-index: 100;
+    }
+    .login-box {
+      background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: var(--radius-xl); padding: 40px; width: 100%; max-width: 380px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+    }
+    .login-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
+    .login-logo .logo-glyph { width: 44px; height: 44px; font-size: 20px; }
+    .login-box h2 { font-size: 1.4rem; font-weight: 900; color: var(--text-1); }
+    .login-box p  { font-size: 0.8rem; color: var(--text-3); margin-top: 4px; }
+    .form-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .form-field label { font-size: 0.78rem; font-weight: 700; color: var(--text-3); }
+    .form-field input {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 10px 14px; font-size: 0.88rem;
+      color: var(--text-1); outline: none; transition: var(--trans); direction: ltr; text-align: left;
+    }
+    .form-field input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(6,182,212,0.12); }
+    .btn-login {
+      width: 100%; padding: 11px;
+      background: linear-gradient(135deg, var(--primary), #3b82f6);
+      color: #fff; font-size: 0.9rem; font-weight: 800; border-radius: var(--radius-sm);
+      border: none; cursor: pointer; transition: var(--trans);
+      box-shadow: 0 4px 16px rgba(6,182,212,0.3); margin-top: 8px;
+    }
+    .btn-login:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-login:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .login-error { color: var(--red); font-size: 0.78rem; text-align: center; margin-top: 10px; min-height: 18px; }
+    .login-notice { color: var(--amber); font-size: 0.75rem; text-align: center; margin-top: 10px; background: var(--amber-bg); border-radius: var(--radius-sm); padding: 8px; }
+
+    .text-muted { color: var(--text-3); }
+    .text-sm    { font-size: 0.78rem; }
+    .font-bold  { font-weight: 700; }
+
+    @media (max-width:900px) {
+      .sidebar { display: none; }
+      .two-col, .two-col-wide { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="logo-glyph">⚡</div>
+      <div>
+        <h2>لوحة التحكم</h2>
+        <p>بين الشفتات &bull; Admin Panel</p>
+      </div>
+    </div>
+    <div class="form-field">
+      <label for="adminEmail">البريد الإلكتروني</label>
+      <input type="email" id="adminEmail" placeholder="admin@example.com" autocomplete="email">
+    </div>
+    <div class="form-field">
+      <label for="adminPassword">كلمة المرور</label>
+      <input type="password" id="adminPassword" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn-login" id="loginBtn" onclick="doAdminLogin()">دخول لوحة التحكم</button>
+    <div class="login-error" id="loginError"></div>
+    <div class="login-notice" id="loginNotice" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-glyph">⚡</div>
+    <div class="logo-text">
+      <span>لوحة التحكم</span>
+      <span>بين الشفتات</span>
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">الرئيسية</div>
+    <div class="nav-item active" id="nav-dashboard" onclick="showView('dashboard',this)">
+      <span class="nav-icon">📊</span><span>لوحة المعلومات</span>
+    </div>
+    <div class="nav-item" id="nav-stores" onclick="showView('stores',this)">
+      <span class="nav-icon">🏪</span><span>المحلات</span>
+      <span class="nav-badge" id="nb-stores">—</span>
+    </div>
+    <div class="nav-item" id="nav-users" onclick="showView('users',this)">
+      <span class="nav-icon">👥</span><span>المستخدمون</span>
+      <span class="nav-badge" id="nb-users">—</span>
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">العمليات</div>
+    <div class="nav-item" id="nav-requests" onclick="showView('requests',this)">
+      <span class="nav-icon">📋</span><span>الطلبات والمهام</span>
+      <span class="nav-badge red" id="nb-requests">—</span>
+    </div>
+    <div class="nav-item" id="nav-invitations" onclick="showView('invitations',this)">
+      <span class="nav-icon">📩</span><span>دعوات الانضمام</span>
+      <span class="nav-badge amber" id="nb-invites">—</span>
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">النظام</div>
+    <div class="nav-item" id="nav-activity" onclick="showView('activity',this)">
+      <span class="nav-icon">🕐</span><span>سجل الأنشطة</span>
+    </div>
+    <div class="nav-item" id="nav-settings" onclick="showView('settings',this)">
+      <span class="nav-icon">⚙️</span><span>الإعدادات</span>
+    </div>
+  </div>
+
+  <div class="sidebar-footer">
+    <div class="sidebar-user" onclick="doLogout()" title="تسجيل الخروج">
+      <div class="user-avatar" id="sidebarAvatar">م</div>
+      <div class="user-info">
+        <strong id="sidebarName">المشرف</strong>
+        <span>تسجيل الخروج</span>
+      </div>
+      <span style="color:var(--text-4);font-size:0.8rem;">⬅</span>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN PANEL -->
+<main class="admin-main" id="adminMain" style="display:none">
+  <header class="admin-header">
+    <div class="page-title-area">
+      <h1 id="pageTitle">لوحة المعلومات</h1>
+      <p id="pageSubtitle">نظرة عامة على أداء التطبيق</p>
+    </div>
+    <div class="header-actions">
+      <div class="realtime-dot">متصل</div>
+      <button class="header-btn ghost" onclick="refreshData()">🔄 تحديث</button>
+      <button class="header-btn primary" onclick="exportCSV()">⬇ تصدير CSV</button>
+    </div>
+  </header>
+
+  <div class="admin-content">
+
+    <!-- ══ DASHBOARD ══ -->
+    <div class="view active" id="view-dashboard">
+      <div class="kpi-grid" id="kpiGrid">
+        <div class="kpi-card skeleton" style="height:110px;--kpi-color:var(--primary);"></div>
+        <div class="kpi-card skeleton" style="height:110px;--kpi-color:var(--green);"></div>
+        <div class="kpi-card skeleton" style="height:110px;--kpi-color:var(--amber);"></div>
+        <div class="kpi-card skeleton" style="height:110px;--kpi-color:var(--purple);"></div>
+      </div>
+      <div class="two-col-wide">
+        <div class="card">
+          <div class="section-header">
+            <div class="section-title">📈 الطلبات (آخر 7 أيام) <span class="pill" id="weekTotal">—</span></div>
+          </div>
+          <div class="mini-chart" id="weekChart"></div>
+          <div class="chart-labels" id="weekLabels"></div>
+        </div>
+        <div class="card">
+          <div class="section-header"><div class="section-title">🗂️ توزيع الأقسام</div></div>
+          <div class="progress-list" id="categoryBreakdown">
+            <div class="skeleton" style="height:18px;border-radius:99px;"></div>
+            <div class="skeleton" style="height:18px;border-radius:99px;margin-top:8px;"></div>
+            <div class="skeleton" style="height:18px;border-radius:99px;margin-top:8px;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <div class="section-header">
+            <div class="section-title">⚡ آخر الأنشطة</div>
+            <span class="section-link" onclick="showView('activity',document.getElementById('nav-activity'))">عرض الكل</span>
+          </div>
+          <div class="activity-list" id="recentActivity">
+            <div class="empty-state"><div class="empty-icon">📭</div><p>جاري التحميل...</p></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-header"><div class="section-title">📌 مؤشرات سريعة</div></div>
+          <div>
+            <div class="metric-row">
+              <div class="metric-icon">🌅</div>
+              <div class="metric-body"><div class="metric-name">طلبات الشفت الصباحي</div><div class="metric-val" id="mMorning">—</div></div>
+            </div>
+            <div class="metric-row">
+              <div class="metric-icon">🌙</div>
+              <div class="metric-body"><div class="metric-name">طلبات الشفت المسائي</div><div class="metric-val" id="mEvening">—</div></div>
+            </div>
+            <div class="metric-row">
+              <div class="metric-icon">✅</div>
+              <div class="metric-body"><div class="metric-name">نسبة الإنجاز العامة</div><div class="metric-val" id="mCompletion">—</div></div>
+            </div>
+            <div class="metric-row">
+              <div class="metric-icon">⚡</div>
+              <div class="metric-body"><div class="metric-name">طلبات مستعجلة مفتوحة</div><div class="metric-val" id="mUrgent" style="color:var(--red)">—</div></div>
+            </div>
+            <div class="metric-row">
+              <div class="metric-icon">🏪</div>
+              <div class="metric-body"><div class="metric-name">أكثر محل نشاطاً</div><div class="metric-val" id="mTopStore">—</div><div class="metric-sub" id="mTopStoreSub"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ STORES ══ -->
+    <div class="view" id="view-stores">
+      <div class="section-header">
+        <div class="section-title">🏪 جميع المحلات</div>
+        <span class="section-link" id="storesCount">جاري التحميل...</span>
+      </div>
+      <div class="card">
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead><tr><th>#</th><th>اسم المحل</th><th>الوصف</th><th>الأعضاء</th><th>الطلبات</th><th>تاريخ الإنشاء</th><th>إجراءات</th></tr></thead>
+            <tbody id="storesTableBody"><tr><td colspan="7"><div class="empty-state"><div class="empty-icon">⏳</div><p>جاري التحميل...</p></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ USERS ══ -->
+    <div class="view" id="view-users">
+      <div class="users-toolbar">
+        <div class="search-input-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="userSearch" placeholder="بحث بالاسم أو البريد الإلكتروني..." oninput="filterUsers()">
+        </div>
+      </div>
+      <div class="card">
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead><tr><th>#</th><th>الاسم الكامل</th><th>البريد الإلكتروني</th><th>المحلات</th><th>الدور</th><th>تاريخ التسجيل</th></tr></thead>
+            <tbody id="usersTableBody"><tr><td colspan="6"><div class="empty-state"><div class="empty-icon">⏳</div><p>جاري التحميل...</p></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ REQUESTS ══ -->
+    <div class="view" id="view-requests">
+      <div class="section-header"><div class="section-title">📋 جميع الطلبات والمهام</div></div>
+      <div class="card">
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead><tr><th>العنوان</th><th>القسم</th><th>الحالة</th><th>الأولوية</th><th>الشفت</th><th>المحل</th><th>بواسطة</th><th>التاريخ</th></tr></thead>
+            <tbody id="requestsTableBody"><tr><td colspan="8"><div class="empty-state"><div class="empty-icon">⏳</div><p>جاري التحميل...</p></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ INVITATIONS ══ -->
+    <div class="view" id="view-invitations">
+      <div class="section-header"><div class="section-title">📩 دعوات الانضمام</div></div>
+      <div class="card">
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead><tr><th>رمز الدعوة</th><th>المحل</th><th>الدور</th><th>تنتهي في</th><th>الحالة</th><th>تم الإنشاء</th><th>إجراءات</th></tr></thead>
+            <tbody id="invitationsTableBody"><tr><td colspan="7"><div class="empty-state"><div class="empty-icon">⏳</div><p>جاري التحميل...</p></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ ACTIVITY ══ -->
+    <div class="view" id="view-activity">
+      <div class="card">
+        <div class="section-header"><div class="section-title">🕐 سجل الأنشطة الكامل</div></div>
+        <div class="activity-list" id="fullActivityList">
+          <div class="empty-state"><div class="empty-icon">⏳</div><p>جاري التحميل...</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SETTINGS ══ -->
+    <div class="view" id="view-settings">
+      <div class="two-col">
+        <div class="card">
+          <div class="section-header"><div class="section-title">⚙️ بنية التطبيق</div></div>
+          <div style="display:flex;flex-direction:column;gap:0;">
+            <div class="metric-row"><div class="metric-icon">🔗</div><div class="metric-body"><div class="metric-name">رابط Supabase</div><div style="font-size:0.75rem;direction:ltr;text-align:right;color:var(--text-3);word-break:break-all;" id="settingUrl">—</div></div></div>
+            <div class="metric-row"><div class="metric-icon">🗄️</div><div class="metric-body"><div class="metric-name">قاعدة البيانات</div><div class="metric-val" style="font-size:0.9rem;">PostgreSQL</div><div class="metric-sub">Row Level Security مُفعّل</div></div></div>
+            <div class="metric-row"><div class="metric-icon">📡</div><div class="metric-body"><div class="metric-name">Realtime Subscriptions</div><div class="metric-val" style="font-size:0.9rem;color:var(--green);">مُفعّل ✅</div></div></div>
+            <div class="metric-row"><div class="metric-icon">📱</div><div class="metric-body"><div class="metric-name">PWA</div><div class="metric-val" style="font-size:0.9rem;color:var(--green);">مُفعّل ✅</div></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-header"><div class="section-title">🛡️ جلسة المشرف</div></div>
+          <div style="display:flex;flex-direction:column;gap:0;">
+            <div class="metric-row"><div class="metric-icon">👤</div><div class="metric-body"><div class="metric-name">المشرف الحالي</div><div class="metric-val" style="font-size:0.9rem;" id="settingAdmin">—</div></div></div>
+            <div class="metric-row"><div class="metric-icon">📧</div><div class="metric-body"><div class="metric-name">البريد الإلكتروني</div><div style="font-size:0.85rem;direction:ltr;text-align:right;color:var(--text-1);font-weight:700;" id="settingEmail">—</div></div></div>
+          </div>
+          <div style="margin-top:16px;">
+            <button class="header-btn ghost" style="width:100%;justify-content:center;border-radius:var(--radius-md);" onclick="doLogout()">🚪 تسجيل الخروج</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /admin-content -->
+</main>
+
+<div class="toast-area" id="toastArea"></div>
+
+<script src="config.js?v=1.2.0"></script>
+<script>
+// ══════════════════════════════════════════════
+//  ADMIN PANEL JS — بين الشفتات
+// ══════════════════════════════════════════════
+
+let db = null;
+let adminUser = null;
+let allStores = [], allUsers = [], allRequests = [], allInvitations = [];
+
+/* ─── INIT ─────────────────────────────────── */
+window.addEventListener('DOMContentLoaded', async () => {
+  if (window.supabaseConfig && window.supabaseConfig.isConfigured()) {
+    db = window.supabaseConfig.getClient();
+  }
+
+  if (!db) {
+    const n = document.getElementById('loginNotice');
+    n.textContent = '⚠️ Supabase غير مهيأ — سيعمل التطبيق بالبيانات التجريبية';
+    n.style.display = 'block';
+  }
+
+  if (db) {
+    const { data: { session } } = await db.auth.getSession();
+    if (session?.user) { await afterLogin(session.user); return; }
+  }
+  document.getElementById('loginScreen').style.display = 'flex';
+});
+
+/* ─── LOGIN ─────────────────────────────────── */
+async function doAdminLogin() {
+  const email = document.getElementById('adminEmail').value.trim();
+  const pass  = document.getElementById('adminPassword').value;
+  const btn   = document.getElementById('loginBtn');
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+
+  if (!email || !pass) { errEl.textContent = 'يرجى إدخال البريد وكلمة المرور'; return; }
+  btn.disabled = true; btn.textContent = 'جاري التحقق...';
+
+  if (!db) { await loadDemoMode(); btn.disabled=false; btn.textContent='دخول لوحة التحكم'; return; }
+
+  try {
+    const { data, error } = await db.auth.signInWithPassword({ email, password: pass });
+    if (error) throw error;
+    await afterLogin(data.user);
+  } catch (e) {
+    errEl.textContent = e.message || 'بيانات الدخول غير صحيحة';
+    btn.disabled=false; btn.textContent='دخول لوحة التحكم';
+  }
+}
+
+document.addEventListener('keydown', e => { if(e.key==='Enter') doAdminLogin(); });
+
+async function afterLogin(user) {
+  adminUser = user;
+  const name = user.user_metadata?.full_name || user.email?.split('@')[0] || 'المشرف';
+  document.getElementById('sidebarName').textContent = name;
+  document.getElementById('sidebarAvatar').textContent = name[0].toUpperCase();
+  document.getElementById('settingAdmin').textContent = name;
+  document.getElementById('settingEmail').textContent = user.email;
+  if (window.supabaseConfig) document.getElementById('settingUrl').textContent = window.supabaseConfig.url || '—';
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('adminMain').style.display = 'flex';
+  await loadAllData();
+}
+
+/* ─── DEMO DATA ─────────────────────────────── */
+async function loadDemoMode() {
+  adminUser = { email: 'demo@admin.com', user_metadata: { full_name: 'مشرف تجريبي' } };
+  document.getElementById('sidebarName').textContent = 'مشرف تجريبي';
+  document.getElementById('sidebarAvatar').textContent = 'م';
+  document.getElementById('settingAdmin').textContent = 'مشرف تجريبي';
+  document.getElementById('settingEmail').textContent = 'demo@admin.com';
+  document.getElementById('settingUrl').textContent = 'وضع العرض التجريبي';
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('adminMain').style.display = 'flex';
+
+  allStores = [
+    {id:'s1',name:'صيدلية الأمل',description:'فرع الشارع التجاري',created_at:'2025-01-10',memberCount:5,requestCount:42,suspended:false},
+    {id:'s2',name:'مكتبة النور',description:'المركز التجاري',created_at:'2025-02-15',memberCount:3,requestCount:28,suspended:false},
+    {id:'s3',name:'محل التقنية',description:'الفرع الرئيسي',created_at:'2025-03-22',memberCount:7,requestCount:65,suspended:true},
+    {id:'s4',name:'بقالة الفرحان',description:'الحي الشرقي',created_at:'2025-04-05',memberCount:2,requestCount:17,suspended:false},
+  ];
+  allUsers = [
+    {id:'u1',full_name:'أحمد العمري', email:'ahmed@ex.com', storeCount:2,topRole:'owner',  created_at:'2025-01-10'},
+    {id:'u2',full_name:'سارة المطيري',email:'sara@ex.com',  storeCount:1,topRole:'manager',created_at:'2025-02-01'},
+    {id:'u3',full_name:'خالد الدوسري',email:'khaled@ex.com',storeCount:3,topRole:'owner',  created_at:'2025-02-15'},
+    {id:'u4',full_name:'منى الغامدي', email:'mona@ex.com',  storeCount:1,topRole:'staff',  created_at:'2025-03-01'},
+    {id:'u5',full_name:'فهد الشمري',  email:'fahad@ex.com', storeCount:2,topRole:'manager',created_at:'2025-03-20'},
+    {id:'u6',full_name:'نورة السلمي', email:'noura@ex.com', storeCount:1,topRole:'staff',  created_at:'2025-04-10'},
+  ];
+  allRequests = buildDemoRequests();
+  allInvitations = [
+    {id:'i1',token:'ABC12345DEMO',store_name:'صيدلية الأمل',role:'staff',  expires_at:futureDate(1),status:'active',created_at:'2025-10-13'},
+    {id:'i2',token:'XYZ98765DEMO',store_name:'مكتبة النور', role:'manager',expires_at:futureDate(5),status:'active',created_at:'2025-10-12'},
+    {id:'i3',token:'QRS11111DEMO',store_name:'محل التقنية', role:'staff',  expires_at:futureDate(-1),status:'used', created_at:'2025-10-10'},
+  ];
+  renderAll();
+}
+
+function futureDate(days) {
+  const d = new Date(); d.setDate(d.getDate()+days); return d.toISOString();
+}
+
+function buildDemoRequests() {
+  const cats   = ['reservation','shortage','announcement'];
+  const stats  = ['new','in_progress','ready','completed'];
+  const prios  = ['normal','urgent'];
+  const shifts = ['صباحي','مسائي'];
+  const stores = ['صيدلية الأمل','مكتبة النور','محل التقنية','بقالة الفرحان'];
+  const auths  = ['أحمد العمري','سارة المطيري','خالد الدوسري','منى الغامدي'];
+  const titles = ['حجز كتاب رياضيات','توفير ورق A4','تبليغ: إغلاق مبكر','نقص قلم أحمر','حجز دواء زيتروماكس','تبليغ بالاجتماع','توفير قفازات طبية','حجز موسوعة','نقص مشروبات','تبليغ تعديل الدوام','حجز قارئ بطاقة','توفير كمامات'];
+  return Array.from({length:60},(_,i)=>({
+    id:`r${i}`,title:titles[i%titles.length],
+    category:cats[i%cats.length],status:stats[i%stats.length],
+    priority:prios[i%prios.length],shift:shifts[i%shifts.length],
+    store_name:stores[i%stores.length],author_name:auths[i%auths.length],
+    created_at:new Date(Date.now()-i*5.5*3600000).toISOString()
+  }));
+}
+
+/* ─── LOAD REAL DATA ────────────────────────── */
+async function loadAllData() {
+  if (!db) return loadDemoMode();
+  try {
+    const [sRes,uRes,rReq,aReq,mRes,iRes] = await Promise.all([
+      db.from('stores').select('*').order('created_at',{ascending:false}),
+      db.from('profiles').select('*').order('created_at',{ascending:false}),
+      db.from('requests').select('*,stores(name)').order('created_at',{ascending:false}),
+      db.from('announcements').select('*,stores(name)').order('created_at',{ascending:false}),
+      db.from('memberships').select('*,profiles(full_name,email),stores(name)'),
+      db.from('invitations').select('*,stores(name)').order('created_at',{ascending:false}),
+    ]);
+
+    allStores = (sRes.data||[]).map(s=>({
+      ...s,
+      memberCount:(mRes.data||[]).filter(m=>m.store_id===s.id).length,
+      requestCount:(rReq.data||[]).filter(r=>r.store_id===s.id).length+(aReq.data||[]).filter(a=>a.store_id===s.id).length,
+    }));
+
+    allUsers = (uRes.data||[]).map(u=>{
+      const ms=(mRes.data||[]).filter(m=>m.user_id===u.id);
+      const roles=ms.map(m=>m.role);
+      return {...u,storeCount:ms.length,topRole:roles.includes('owner')?'owner':roles.includes('manager')?'manager':roles.length>0?'staff':null};
+    });
+
+    allRequests = [...(rReq.data||[]),...(aReq.data||[])].map(r=>({...r,store_name:r.stores?.name||'—',category:r.category||'announcement'}));
+    allInvitations = (iRes.data||[]).map(i=>({...i,store_name:i.stores?.name||'—'}));
+
+    renderAll();
+  } catch(e) {
+    showToast('خطأ في تحميل البيانات: '+e.message,'error');
+    loadDemoMode();
+  }
+}
+
+function refreshData() { showToast('جاري التحديث...','info'); loadAllData(); }
+
+function renderAll() {
+  renderDashboard(); renderStores(); renderUsers();
+  renderRequests(); renderInvitations(); renderActivity();
+  updateNavBadges();
+}
+
+/* ─── DASHBOARD ─────────────────────────────── */
+function renderDashboard() {
+  const total  = allRequests.length;
+  const open   = allRequests.filter(r=>r.status!=='completed').length;
+  const active = allInvitations.filter(i=>i.status==='active').length;
+
+  document.getElementById('kpiGrid').innerHTML =
+    kpiCard('🏪','المحلات المسجلة',allStores.length,'+'+allStores.filter(s=>isNew(s.created_at,7)).length+' هذا الأسبوع','up','var(--primary)','var(--primary-bg)')+
+    kpiCard('👥','المستخدمون',allUsers.length,'+'+allUsers.filter(u=>isNew(u.created_at,30)).length+' هذا الشهر','up','var(--green)','var(--green-bg)')+
+    kpiCard('📋','إجمالي الطلبات',total,open+' طلب مفتوح','neutral','var(--amber)','var(--amber-bg)')+
+    kpiCard('📩','دعوات نشطة',active,allInvitations.length+' إجمالي','neutral','var(--purple)','var(--purple-bg)');
+
+  renderWeekChart();
+  renderCategoryBreakdown();
+
+  const latest=[...allRequests].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,6);
+  document.getElementById('recentActivity').innerHTML=latest.length
+    ? latest.map(activityItem).join('')
+    : '<div class="empty-state"><div class="empty-icon">📭</div><p>لا توجد أنشطة</p></div>';
+
+  document.getElementById('mMorning').textContent   = allRequests.filter(r=>r.shift==='صباحي').length;
+  document.getElementById('mEvening').textContent   = allRequests.filter(r=>r.shift==='مسائي').length;
+  const pct = total ? Math.round(allRequests.filter(r=>r.status==='completed').length/total*100) : 0;
+  document.getElementById('mCompletion').textContent = pct+'%';
+  document.getElementById('mUrgent').textContent    = allRequests.filter(r=>r.priority==='urgent'&&r.status!=='completed').length;
+  const top=[...allStores].sort((a,b)=>b.requestCount-a.requestCount)[0];
+  document.getElementById('mTopStore').textContent    = top?.name||'—';
+  document.getElementById('mTopStoreSub').textContent = top?top.requestCount+' طلب':'';
+}
+
+function kpiCard(icon,label,value,sub,trend,color,bgColor) {
+  return `<div class="kpi-card" style="--kpi-color:${color};--kpi-bg:${bgColor}">
+    <div class="kpi-top">
+      <div class="kpi-icon">${icon}</div>
+      <span class="kpi-change ${trend}">${trend==='up'?'↑':trend==='down'?'↓':'◦'} ${sub}</span>
+    </div>
+    <div class="kpi-value">${value}</div>
+    <div class="kpi-label">${label}</div>
+  </div>`;
+}
+
+function isNew(d,days){ return d&&(Date.now()-new Date(d))<days*86400000; }
+
+function renderWeekChart() {
+  const dayNames=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+  const now=new Date();
+  const counts=Array.from({length:7},(_,i)=>{
+    const d=new Date(now); d.setDate(d.getDate()-(6-i));
+    return {label:dayNames[d.getDay()],count:allRequests.filter(r=>new Date(r.created_at).toDateString()===d.toDateString()).length};
+  });
+  const max=Math.max(...counts.map(c=>c.count),1);
+  const weekSum=counts.reduce((a,c)=>a+c.count,0);
+  document.getElementById('weekTotal').textContent=weekSum+' طلب';
+  document.getElementById('weekChart').innerHTML=counts.map((c,i)=>`<div class="chart-bar ${i===6?'active':''}" style="height:${Math.max(8,Math.round(c.count/max*100))}%" data-val="${c.count}"></div>`).join('');
+  document.getElementById('weekLabels').innerHTML=counts.map(c=>`<div class="chart-label">${c.label.slice(0,3)}</div>`).join('');
+}
+
+function renderCategoryBreakdown() {
+  const cats={reservation:{label:'📦 الحجوزات',color:'var(--primary)'},shortage:{label:'🛒 النواقص',color:'var(--amber)'},announcement:{label:'📢 التبليغات',color:'var(--purple)'}};
+  const total=allRequests.length||1;
+  document.getElementById('categoryBreakdown').innerHTML=Object.entries(cats).map(([key,cfg])=>{
+    const cnt=allRequests.filter(r=>r.category===key).length;
+    const pct=Math.round(cnt/total*100);
+    return `<div class="progress-item">
+      <div class="progress-header"><div class="progress-label">${cfg.label}</div><div class="progress-value">${cnt} (${pct}%)</div></div>
+      <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%;background:${cfg.color};"></div></div>
+    </div>`;
+  }).join('');
+}
+
+function activityItem(r) {
+  const catIcon={reservation:'📦',shortage:'🛒',announcement:'📢'}[r.category]||'📋';
+  const sLabel={new:'جديد',in_progress:'متابعة',ready:'جاهز',completed:'مكتمل'}[r.status]||r.status;
+  const sColor={new:'var(--primary)',in_progress:'var(--amber)',ready:'var(--green)',completed:'var(--text-3)'}[r.status]||'var(--text-3)';
+  const init=(r.author_name||'م').split(' ').map(w=>w[0]).join('').slice(0,2);
+  return `<div class="activity-item">
+    <div class="activity-avatar">${init}</div>
+    <div class="activity-body">
+      <div class="activity-text">${catIcon} <strong>${r.title||'—'}</strong> • ${r.store_name||'—'}</div>
+      <div class="activity-time">${r.author_name||'—'} &bull; ${r.shift||'—'} &bull; ${fmt(r.created_at)}</div>
+    </div>
+    <span class="activity-badge" style="background:${sColor}22;color:${sColor};">${sLabel}</span>
+  </div>`;
+}
+
+/* ─── STORES ─────────────────────────────────── */
+function renderStores() {
+  const suspended = allStores.filter(s=>s.suspended).length;
+  document.getElementById('storesCount').textContent =
+    allStores.length+' محل مسجل' + (suspended ? ` • ${suspended} موقوف` : '');
+
+  document.getElementById('storesTableBody').innerHTML = allStores.length
+    ? allStores.map((s,i) => {
+        const susp = !!s.suspended;
+        const dur  = timeSince(s.created_at);
+        const suspBadge = susp
+          ? `<span style="font-size:0.65rem;font-weight:700;padding:2px 7px;border-radius:99px;background:var(--red-bg);color:var(--red);margin-right:6px;">موقوف</span>`
+          : `<span style="font-size:0.65rem;font-weight:700;padding:2px 7px;border-radius:99px;background:var(--green-bg);color:var(--green);margin-right:6px;">نشط</span>`;
+        return `<tr style="opacity:${susp?'0.65':'1'}">
+          <td class="text-muted">${i+1}</td>
+          <td class="td-name">🏪 ${s.name} ${suspBadge}</td>
+          <td class="text-muted text-sm">${s.description||'—'}</td>
+          <td><span style="color:var(--primary);font-weight:700;">${s.memberCount||0}</span></td>
+          <td><span style="color:var(--amber);font-weight:700;">${s.requestCount||0}</span></td>
+          <td class="text-muted text-sm">
+            <div>${fmt(s.created_at)}</div>
+            <div style="color:var(--text-4);font-size:0.68rem;margin-top:2px;">منذ ${dur}</div>
+          </td>
+          <td style="display:flex;gap:6px;align-items:center;padding:10px 14px;">
+            <button class="action-btn" onclick="openStoreModal('${s.id}')">عرض</button>
+            <button class="action-btn ${susp?'':'danger'}" onclick="toggleStoreSuspend('${s.id}')">${susp?'▶ تفعيل':'⏸ تعليق'}</button>
+          </td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🏪</div><p>لا توجد محلات</p></div></td></tr>';
+}
+
+/* ─── STORE MODAL ────────────────────────────── */
+function openStoreModal(storeId) {
+  const s = allStores.find(x=>x.id===storeId);
+  if (!s) return;
+  const dur  = timeSince(s.created_at);
+  const susp = !!s.suspended;
+  const el   = document.getElementById('storeDetailModal');
+  document.getElementById('sdm-name').textContent        = s.name;
+  document.getElementById('sdm-desc').textContent        = s.description || '—';
+  document.getElementById('sdm-members').textContent     = s.memberCount || 0;
+  document.getElementById('sdm-requests').textContent    = s.requestCount || 0;
+  document.getElementById('sdm-created').textContent     = fmt(s.created_at);
+  document.getElementById('sdm-duration').textContent    = dur;
+  document.getElementById('sdm-status').textContent      = susp ? 'موقوف 🔴' : 'نشط 🟢';
+  document.getElementById('sdm-status').style.color      = susp ? 'var(--red)' : 'var(--green)';
+  const toggleBtn = document.getElementById('sdm-toggle-btn');
+  toggleBtn.textContent   = susp ? '▶ تفعيل المتجر' : '⏸ تعليق المتجر';
+  toggleBtn.style.background = susp ? 'var(--green)' : 'var(--red)';
+  toggleBtn.onclick = () => { closeStoreModal(); toggleStoreSuspend(storeId); };
+  el.style.display = 'flex';
+}
+function closeStoreModal() {
+  document.getElementById('storeDetailModal').style.display = 'none';
+}
+
+/* ─── TOGGLE SUSPEND ─────────────────────────── */
+async function toggleStoreSuspend(storeId) {
+  const s = allStores.find(x=>x.id===storeId);
+  if (!s) return;
+  const newState = !s.suspended;
+
+  if (!db) {
+    // Demo mode — toggle locally
+    s.suspended = newState;
+    renderStores();
+    showToast((newState ? '⏸ تم تعليق' : '▶ تم تفعيل')+' المتجر: '+s.name, newState?'error':'success');
+    return;
+  }
+
+  try {
+    const { error } = await db.from('stores').update({ suspended: newState }).eq('id', storeId);
+    if (error) throw error;
+    s.suspended = newState;
+    renderStores();
+    showToast((newState?'⏸ تم تعليق':'▶ تم تفعيل')+' المتجر: '+s.name, newState?'error':'success');
+  } catch(e) {
+    showToast('خطأ: '+e.message,'error');
+  }
+}
+
+/* ─── USERS ──────────────────────────────────── */
+function renderUsers(){ renderUsersFiltered(allUsers); }
+function filterUsers(){
+  const q=document.getElementById('userSearch').value.trim().toLowerCase();
+  renderUsersFiltered(q?allUsers.filter(u=>(u.full_name||'').toLowerCase().includes(q)||(u.email||'').toLowerCase().includes(q)):allUsers);
+}
+function renderUsersFiltered(users){
+  const rm={owner:'👑 مالك',manager:'🛡️ مدير',staff:'💼 موظف'};
+  document.getElementById('usersTableBody').innerHTML=users.length
+    ? users.map((u,i)=>`<tr>
+        <td class="text-muted">${i+1}</td>
+        <td class="td-name">${u.full_name||'—'}</td>
+        <td class="text-muted" style="direction:ltr;text-align:right;">${u.email||'—'}</td>
+        <td><span style="color:var(--primary);font-weight:700;">${u.storeCount||0}</span> محلات</td>
+        <td>${u.topRole?`<span class="td-role role-${u.topRole}">${rm[u.topRole]||u.topRole}</span>`:'<span class="text-muted">—</span>'}</td>
+        <td class="text-muted text-sm">${fmt(u.created_at)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">👥</div><p>لا يوجد مستخدمون</p></div></td></tr>';
+}
+
+/* ─── REQUESTS ───────────────────────────────── */
+function renderRequests(){
+  const cl={reservation:'📦 حجز',shortage:'🛒 نقص',announcement:'📢 تبليغ'};
+  const sl={new:'جديد',in_progress:'متابعة',ready:'جاهز',completed:'مكتمل'};
+  const sc={new:'var(--primary)',in_progress:'var(--amber)',ready:'var(--green)',completed:'var(--text-3)'};
+  document.getElementById('requestsTableBody').innerHTML=allRequests.length
+    ? allRequests.map(r=>`<tr>
+        <td class="td-name">${r.title||'—'}</td>
+        <td>${cl[r.category]||r.category}</td>
+        <td><span style="color:${sc[r.status]||'inherit'};font-weight:700;">${sl[r.status]||r.status}</span></td>
+        <td>${r.priority==='urgent'?'<span style="color:var(--red);font-weight:800;font-size:0.72rem;">⚡ مستعجل</span>':'<span class="text-muted text-sm">عادي</span>'}</td>
+        <td class="text-muted">${r.shift||'—'}</td>
+        <td class="text-muted">${r.store_name||'—'}</td>
+        <td class="text-muted">${r.author_name||'—'}</td>
+        <td class="text-muted text-sm">${fmt(r.created_at)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📋</div><p>لا توجد طلبات</p></div></td></tr>';
+}
+
+/* ─── INVITATIONS ────────────────────────────── */
+function renderInvitations(){
+  const rm={owner:'👑 مالك',manager:'🛡️ مدير',staff:'💼 موظف'};
+  document.getElementById('invitationsTableBody').innerHTML=allInvitations.length
+    ? allInvitations.map(inv=>{
+        const exp=new Date(inv.expires_at);
+        const expired=exp<new Date();
+        const sc=expired?'inactive':'active'; const st=expired?'منتهية':'نشطة';
+        return `<tr>
+          <td><code style="font-size:0.75rem;color:var(--primary);">${(inv.token||'').slice(0,10)}...</code></td>
+          <td class="td-name">${inv.store_name||'—'}</td>
+          <td><span class="td-role role-${inv.role||'staff'}">${rm[inv.role]||inv.role}</span></td>
+          <td class="text-muted text-sm">${fmt(inv.expires_at)}</td>
+          <td><span class="status-dot ${sc}">${st}</span></td>
+          <td class="text-muted text-sm">${fmt(inv.created_at)}</td>
+          <td>${!expired?`<button class="action-btn danger" onclick="revokeInv('${inv.id}')">إلغاء</button>`:'—'}</td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📩</div><p>لا توجد دعوات</p></div></td></tr>';
+}
+
+async function revokeInv(id){
+  if(!db){showToast('وضع تجريبي - لا يمكن الإلغاء','info');return;}
+  try{
+    const{error}=await db.from('invitations').update({status:'revoked'}).eq('id',id);
+    if(error) throw error;
+    showToast('تم إلغاء الدعوة','success');
+    await loadAllData();
+  }catch(e){showToast('خطأ: '+e.message,'error');}
+}
+
+/* ─── ACTIVITY ───────────────────────────────── */
+function renderActivity(){
+  const sorted=[...allRequests].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,40);
+  document.getElementById('fullActivityList').innerHTML=sorted.length
+    ? sorted.map(activityItem).join('')
+    : '<div class="empty-state"><div class="empty-icon">📭</div><p>لا توجد أنشطة</p></div>';
+}
+
+/* ─── NAV BADGES ─────────────────────────────── */
+function updateNavBadges(){
+  document.getElementById('nb-stores').textContent   = allStores.length;
+  document.getElementById('nb-users').textContent    = allUsers.length;
+  document.getElementById('nb-requests').textContent = allRequests.filter(r=>r.status!=='completed').length;
+  document.getElementById('nb-invites').textContent  = allInvitations.filter(i=>i.status==='active').length;
+}
+
+/* ─── NAVIGATION ─────────────────────────────── */
+const pageMeta={
+  dashboard:  ['لوحة المعلومات','نظرة عامة على أداء التطبيق'],
+  stores:     ['المحلات المسجلة','إدارة جميع المحلات في النظام'],
+  users:      ['المستخدمون','جميع المستخدمين المسجلين في التطبيق'],
+  requests:   ['الطلبات والمهام','عرض وإدارة جميع الطلبات'],
+  invitations:['دعوات الانضمام','روابط وإدارة الدعوات النشطة'],
+  activity:   ['سجل الأنشطة','السجل الكامل لجميع الأنشطة'],
+  settings:   ['إعدادات النظام','إعدادات التطبيق والبنية التحتية'],
+};
+function showView(name,el){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  if(el) el.classList.add('active');
+  const[t,s]=pageMeta[name]||[name,''];
+  document.getElementById('pageTitle').textContent=t;
+  document.getElementById('pageSubtitle').textContent=s;
+}
+
+/* ─── LOGOUT ─────────────────────────────────── */
+async function doLogout(){
+  if(db) await db.auth.signOut();
+  location.reload();
+}
+
+/* ─── EXPORT CSV ─────────────────────────────── */
+function exportCSV(){
+  const h=['العنوان','القسم','الحالة','الأولوية','الشفت','المحل','بواسطة','التاريخ'];
+  const rows=[h,...allRequests.map(r=>[r.title||'',r.category||'',r.status||'',r.priority||'',r.shift||'',r.store_name||'',r.author_name||'',r.created_at||''])];
+  const csv=rows.map(r=>r.map(c=>`"${(c+'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+  a.download='bayn-alshifat-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  showToast('تم تصدير البيانات بنجاح','success');
+}
+
+/* ─── HELPERS ────────────────────────────────── */
+function fmt(s){
+  if(!s) return '—';
+  try{ return new Date(s).toLocaleDateString('ar-SA',{day:'numeric',month:'short',year:'numeric'}); }catch{return s;}
+}
+
+function timeSince(dateStr) {
+  if (!dateStr) return '—';
+  const ms = Date.now() - new Date(dateStr);
+  const days   = Math.floor(ms / 86400000);
+  const months = Math.floor(days / 30);
+  const years  = Math.floor(days / 365);
+  if (years  >= 1) return years  + (years===1  ? ' سنة'    : ' سنوات');
+  if (months >= 1) return months + (months===1 ? ' شهر'    : ' أشهر');
+  if (days   >= 1) return days   + (days===1   ? ' يوم'    : ' أيام');
+  return 'اليوم';
+}
+function showToast(msg,type='info'){
+  const a=document.getElementById('toastArea');
+  const t=document.createElement('div'); t.className='toast '+type;
+  const i={success:'✅',error:'❌',info:'ℹ️'}[type]||'';
+  t.textContent=i+' '+msg; a.appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .4s';setTimeout(()=>t.remove(),400);},3500);
+}
+</script>
+</body>
+</html>

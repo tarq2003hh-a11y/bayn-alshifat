@@ -2,20 +2,20 @@
 // Service Worker - بين الشفتات PWA
 // ===================================================
 
-const CACHE_NAME = 'bayn-alshifat-v1.0.0';
-const RUNTIME_CACHE = 'bayn-alshifat-runtime-v1';
+const CACHE_NAME = 'bayn-alshifat-v1.2.0';
+const RUNTIME_CACHE = 'bayn-alshifat-runtime-v1.2.0';
 
 // الملفات التي تُخزَّن مؤقتاً عند التثبيت (App Shell)
 const PRECACHE_ASSETS = [
-  '/bayn-alshifat/',
-  '/bayn-alshifat/index.html',
-  '/bayn-alshifat/style.css',
-  '/bayn-alshifat/app.js',
-  '/bayn-alshifat/config.js',
-  '/bayn-alshifat/manifest.json',
-  '/bayn-alshifat/icons/icon-192x192.png',
-  '/bayn-alshifat/icons/icon-512x512.png',
-  '/bayn-alshifat/icons/icon-180x180.png',
+  './',
+  './index.html',
+  './style.css?v=1.2.0',
+  './app.js?v=1.2.0',
+  './config.js?v=1.2.0',
+  './manifest.json',
+  './icons/icon-192x192.png',
+  './icons/icon-512x512.png',
+  './icons/icon-180x180.png',
 ];
 
 // ===================================================
@@ -58,8 +58,15 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // تجاهل طلبات غير HTTP/HTTPS أو طلبات Supabase (تحتاج اتصال دائم)
-  if (!request.url.startsWith('http') || url.hostname.includes('supabase')) {
+  // حظر وتجاهل تام لتخزين صور الطلبات الخاصة والروابط الموقعة أو طلبات Supabase في الكاش
+  // للحفاظ على أمان وخصوصية صور المحلات والزبائن وعزلها
+  if (
+    !request.url.startsWith('http') ||
+    url.hostname.includes('supabase') ||
+    url.pathname.includes('/storage/v1') ||
+    url.pathname.includes('request_attachments') ||
+    url.searchParams.has('token')
+  ) {
     return;
   }
 
@@ -68,7 +75,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // استراتيجية Cache First للأصول الثابتة (CSS, JS, الصور, الخطوط)
+  // استراتيجية Cache First للأصول الثابتة الخاصة بواجهة التطبيق فقط (CSS, JS, الخطوط, أيقونات التطبيق العامة)
   if (isStaticAsset(url)) {
     event.respondWith(cacheFirst(request));
     return;
@@ -83,6 +90,10 @@ self.addEventListener('fetch', (event) => {
 // ===================================================
 
 function isStaticAsset(url) {
+  // منع تخزين أي مسار يخص التخزين أو التوكن
+  if (url.pathname.includes('/storage/') || url.searchParams.has('token')) {
+    return false;
+  }
   return (
     url.pathname.match(/\.(css|js|png|jpg|jpeg|svg|gif|webp|woff|woff2|ttf|ico)$/) ||
     url.hostname.includes('fonts.googleapis.com') ||
@@ -127,8 +138,9 @@ async function networkFirst(request) {
 
     // Fallback للصفحة الرئيسية عند الأوفلاين
     if (request.mode === 'navigate') {
-      const fallback = await caches.match('/bayn-alshifat/') ||
-                       await caches.match('/bayn-alshifat/index.html');
+      const fallback = await caches.match('./') ||
+                       await caches.match('./index.html') ||
+                       await caches.match('index.html');
       if (fallback) return fallback;
     }
 
