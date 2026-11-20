@@ -2,14 +2,15 @@
 // Service Worker - بين الشفتات PWA
 // ===================================================
 
-const CACHE_NAME = 'bayn-alshifat-v1.2.0';
-const RUNTIME_CACHE = 'bayn-alshifat-runtime-v1.2.0';
+const CACHE_NAME = 'bayn-alshifat-v1.3.0';
+const RUNTIME_CACHE = 'bayn-alshifat-runtime-v1.3.0';
 
 // الملفات التي تُخزَّن مؤقتاً عند التثبيت (App Shell)
 const PRECACHE_ASSETS = [
   './',
   './index.html',
   './style.css?v=1.2.0',
+  './premium.css?v=1.0.0',
   './app.js?v=1.2.0',
   './config.js?v=1.2.0',
   './manifest.json',
