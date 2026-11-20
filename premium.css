@@ -92,7 +92,7 @@ button,input,select,textarea{font:inherit}
 .no-store-card{border-color:var(--border-light);border-radius:22px;box-shadow:var(--shadow-sm)}
 .toast{border-radius:14px;box-shadow:var(--shadow-md)}
 .app-footer{background:#fff;border-color:var(--border-light)}
-@media(min-width:860px){.main-container{padding:1.5rem 1.5rem 4rem}.btn-fab-add{display:none!important}.items-container{gap:1rem}.stats-strip{margin-bottom:1rem}}
+@media(min-width:860px){.main-container{padding:1.5rem 1.5rem 4rem}.items-container{gap:1rem}.stats-strip{margin-bottom:1rem}}\n@media(min-width:600px){.btn-fab-add{display:none!important}}
 @media(max-width:599px){
  .main-container{padding:.8rem .75rem calc(6rem + env(safe-area-inset-bottom))}
  .header-container{min-height:58px;padding-inline:.75rem}.brand-title{font-size:1rem}.active-store-chip{max-width:110px}
@@ -102,7 +102,7 @@ button,input,select,textarea{font:inherit}
  .card-compact-summary{padding:.9rem}.modal-backdrop{align-items:flex-end;padding:0}
  .modal-card{border-radius:22px 22px 0 0;max-height:min(92vh,850px)}
 }
-@media(min-width:600px) and (max-width:859px){.main-container{padding-inline:1rem}.items-container{grid-template-columns:repeat(2,minmax(0,1fr))}.btn-fab-add{bottom:calc(16px + env(safe-area-inset-bottom));left:16px}}
+@media(min-width:600px) and (max-width:859px){.main-container{padding-inline:1rem}.items-container{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 /* Admin console — matching light palette and component language */
 :root{
